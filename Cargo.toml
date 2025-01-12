@@ -2,6 +2,8 @@
 name = "gemini_client_rs"
 version = "0.1.0"
 edition = "2021"
+description = "A Rust client for Google Gemini API"
+license = "MIT"
 
 [dependencies]
 reqwest = { version = "0.11", features = ["json"] }
