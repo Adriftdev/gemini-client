@@ -43,7 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let request = GenerateContentRequest {
         contents: vec![Content {
             parts: vec![ContentPart::Text(
-                r#"What's the current weather in Belvoir, Grantham, UK?"#.to_string(),
+                r#"What's the current weather in London, UK?"#.to_string(),
             )],
             role: Role::User,
         }],

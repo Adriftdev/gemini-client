@@ -17,12 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let request = GenerateContentRequest {
         contents: vec![Content {
             parts: vec![ContentPart::Text(
-                r#"
-                What's the weather like in Belvoir, Grantham, UK? use celcius.     
-                and is it safe for me to drive to work tomorrow, 
-                which is located near market harbourer?
-                Is there any flooding that could be an issue or heavy snow or icing?"#
-                    .to_string(),
+                r#"What's the weather like in London, UK?"#.to_string(),
             )],
             role: Role::User,
         }],

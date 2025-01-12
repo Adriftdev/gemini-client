@@ -25,13 +25,8 @@ Add the following to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-gemini-client = "0.1.0" # Replace with the actual version
-reqwest = "0.11"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+gemini-client-rs = "0.1.0" # Replace with the actual version
 tokio = { version = "1", features = ["full"] }
-thiserror = "1.0"
-dotenvy = "0.15" # Optional, for loading API key from .env file
 ```
 
 ### Setting up your API Key
