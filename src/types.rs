@@ -22,7 +22,6 @@ pub struct GenerateContentRequest {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ToolConfig {
-    //remove function declaration tag and use directly the struct
     #[serde(rename = "function_declaration")]
     FunctionDeclaration(ToolConfigFunctionDeclaration),
     DynamicRetieval {

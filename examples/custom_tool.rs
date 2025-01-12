@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 
 use gemini_client_rs::{
-    types::{
-        Content, ContentPart, FunctionDeclaration, FunctionParameters, GenerateContentRequest,
-        ParameterProperty, PartResponse, Role, ToolConfig, ToolConfigFunctionDeclaration,
-    },
+    types::{GenerateContentRequest, PartResponse},
     GeminiClient,
 };
 
 use dotenvy::dotenv;
+use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -17,42 +15,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let api_key = std::env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY must be set");
 
     let client = GeminiClient::new(api_key);
-    let model_name = "gemini-2.0-flash-exp"; // Or your desired model
+    let model_name = "gemini-2.0-flash-exp";
 
-    let get_current_weather_fn = FunctionDeclaration {
-        name: "get_current_weather".to_string(),
-        description: "Get the current weather in a given location".to_string(),
-        parameters: FunctionParameters {
-            parameter_type: "OBJECT".to_string(),
-            properties: {
-                let mut props = HashMap::new();
-                props.insert(
-                    "location".to_string(),
-                    ParameterProperty {
-                        property_type: "string".to_string(),
-                        description: "The city and state, e.g. 'San Francisco, CA'".to_string(),
-                        enum_values: None,
-                    },
-                );
-                props
-            },
-            required: Some(vec!["location".to_string()]),
-        },
-    };
+    let req_json = json!({
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": "What's the current weather in London, UK?"
+                    }
+                ],
+                "role": "user"
+            }
+        ],
+        "tools": [
+             {
+                "function_declarations": [
+                    {
+                        "name": "get_current_weather",
+                        "description": "Get the current weather in a given location",
+                        "parameters": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "location": {
+                                    "type": "string",
+                                    "description": "The city and state, e.g. 'San Francisco, CA'"
+                                }
+                            },
+                            "required": ["location"]
+                        }
+                    }
+                ]
+            }
+        ]
+    });
 
-    let request = GenerateContentRequest {
-        contents: vec![Content {
-            parts: vec![ContentPart::Text(
-                r#"What's the current weather in London, UK?"#.to_string(),
-            )],
-            role: Role::User,
-        }],
-        tools: Some(vec![ToolConfig::FunctionDeclaration(
-            ToolConfigFunctionDeclaration {
-                function_declarations: vec![get_current_weather_fn],
-            },
-        )]),
-    };
+    let request = serde_json::from_value::<GenerateContentRequest>(req_json)?;
 
     let mut function_handlers: HashMap<
         String,
@@ -63,6 +61,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "get_current_weather".to_string(),
         Box::new(|args: serde_json::Value| {
             if let Some(_location) = args.get("location").and_then(|v| v.as_str()) {
+                // This is a dummy implementation, would normally call an external API, etc.
                 Ok(serde_json::json!({ "temperature": 15, "condition": "Cloudy" }))
             } else {
                 Err("Missing 'location' argument".to_string())
