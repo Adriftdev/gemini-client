@@ -61,7 +61,7 @@ Here are some examples demonstrating how to use the `gemini-client-rs` crate.
 ### Basic Text Generation
 
 ```rust
-use gemini_client::{
+use gemini_client_rs::{
     types::{Content, ContentPart, GenerateContentRequest, PartResponse, Role},
     GeminiClient,
 };
@@ -106,7 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust
 use std::collections::HashMap;
-use gemini_client::{
+use gemini_client_rs::{
     types::{
         Content, ContentPart, FunctionDeclaration, FunctionParameters, GenerateContentRequest,
         ParameterProperty, PartResponse, Role, ToolConfig, ToolConfigFunctionDeclaration,
@@ -200,7 +200,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust
 use std::collections::HashMap;
-use gemini_client::{
+use gemini_client_rs::{
     types::{
         Content, ContentPart, DynamicRetrieval, DynamicRetrievalConfig, GenerateContentRequest,
         PartResponse, Role, ToolConfig,
@@ -258,7 +258,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 The crate defines a `GeminiError` enum to represent various errors that can occur during API calls or function execution. You can handle these errors using standard Rust error handling mechanisms:
 
 ```rust
-use gemini_client::{GeminiClient, types::GenerateContentRequest, GeminiError};
+use gemini_client_rs::{GeminiClient, types::GenerateContentRequest, GeminiError};
 
 async fn generate(client: &GeminiClient, request: &GenerateContentRequest) -> Result<(), GeminiError> {
     let model_name = "gemini-1.5-flash";
