@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use gemini_client::{
+use gemini_client_rs::{
     types::{
         Content, ContentPart, DynamicRetrieval, DynamicRetrievalConfig, GenerateContentRequest,
         PartResponse, Role, ToolConfig,
@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let api_key = std::env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY must be set");
 
     let client = GeminiClient::new(api_key);
-    let model_name = "gemini-1.5-pro"; // Or your desired model
+    let model_name = "gemini-1.5-flash"; // Or your desired model
 
     let request = GenerateContentRequest {
         contents: vec![Content {
@@ -50,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for candidate in &candidates {
         for part in &candidate.content.parts {
             match part {
-                PartResponse::Text(text) => println!("Text: {}", text),
+                PartResponse::Text(text) => println!("{}", text),
                 _ => { /* Ignore other part types as we are not using tools */ }
             }
         }

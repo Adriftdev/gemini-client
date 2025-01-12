@@ -1,4 +1,4 @@
-use gemini_client::{
+use gemini_client_rs::{
     types::{Content, ContentPart, GenerateContentRequest, PartResponse, Role},
     GeminiClient,
 };
@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for candidate in &candidates {
         for part in &candidate.content.parts {
             match part {
-                PartResponse::Text(text) => println!("Text: {}", text),
+                PartResponse::Text(text) => println!("{}", text),
                 _ => { /* Ignore other part types as we are not using tools */ }
             }
         }

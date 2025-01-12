@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use gemini_client::{
+use gemini_client_rs::{
     types::{
         Content, ContentPart, FunctionDeclaration, FunctionParameters, GenerateContentRequest,
         ParameterProperty, PartResponse, Role, ToolConfig, ToolConfigFunctionDeclaration,
@@ -86,7 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         PartResponse::FunctionResponse(_) => "Function response found",
     };
 
-    println!("Weather: {}", weather);
+    println!("{}", weather);
 
     Ok(())
 }

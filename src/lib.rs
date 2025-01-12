@@ -44,10 +44,6 @@ impl GeminiClient {
             self.api_url, model, self.api_key
         );
 
-        let json = serde_json::to_string(request)?;
-
-        println!("Request: {}", json);
-
         let response = self.http_client.post(&url).json(request).send().await?;
 
         if response.status().is_success() {
