@@ -54,12 +54,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut function_handlers: HashMap<
         String,
-        Box<dyn Fn(serde_json::Value) -> Result<serde_json::Value, String> + Send + Sync>,
+        Box<dyn Fn(&mut serde_json::Value) -> Result<serde_json::Value, String> + Send + Sync>,
     > = HashMap::new();
 
     function_handlers.insert(
         "get_current_weather".to_string(),
-        Box::new(|args: serde_json::Value| {
+        Box::new(|args: &mut serde_json::Value| {
             if let Some(_location) = args.get("location").and_then(|v| v.as_str()) {
                 // This is a dummy implementation, would normally call an external API, etc.
                 Ok(serde_json::json!({ "temperature": 15, "condition": "Cloudy" }))

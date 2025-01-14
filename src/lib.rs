@@ -61,7 +61,7 @@ impl GeminiClient {
         mut request: GenerateContentRequest,
         function_handlers: &HashMap<
             String,
-            Box<dyn Fn(serde_json::Value) -> Result<serde_json::Value, String> + Send + Sync>,
+            Box<dyn Fn(&mut serde_json::Value) -> Result<serde_json::Value, String> + Send + Sync>,
         >,
     ) -> Result<GenerateContentResponse, GeminiError> {
         loop {
@@ -74,7 +74,7 @@ impl GeminiClient {
                             PartResponse::Text(_) => return Ok(response),
                             PartResponse::FunctionCall(function_call) => {
                                 if let Some(handler) = function_handlers.get(&function_call.name) {
-                                    match handler(function_call.arguments.clone()) {
+                                    match handler(&mut function_call.arguments.clone()) {
                                         Ok(result) => {
                                             request.contents.push(Content {
                                                 parts: vec![ContentPart::FunctionCall(
