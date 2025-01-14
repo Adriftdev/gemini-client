@@ -65,6 +65,7 @@ use gemini_client_rs::{
     types::{Content, ContentPart, GenerateContentRequest, PartResponse, Role},
     GeminiClient,
 };
+use serde_json::{json, Value};
 use dotenvy::dotenv;
 
 #[tokio::main]
