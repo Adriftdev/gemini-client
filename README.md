@@ -75,15 +75,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = GeminiClient::new(api_key);
     let model_name = "gemini-1.5-flash"; // Or your desired model
 
-    let request = GenerateContentRequest {
-        contents: vec![Content {
-            parts: vec![ContentPart::Text(
-                "Write a short poem about the rust programming language.".to_string(),
-            )],
-            role: Role::User,
-        }],
-        tools: None,
-    };
+    let mut history: Vec<Content> = vec![Content {
+        parts: vec![ContentPart::Text(outline_prompt.clone())],
+        role: Role::User,
+    }];
+
+    let req_json = json!(
+        {
+            "contents": history,
+        }
+    );
+
+    let request: GenerateContentRequest = serde_json::from_value(req_json).expect("Invalid JSON");
+
 
     let response = client.generate_content(model_name, &request).await?;
 
@@ -91,7 +95,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         for candidate in &candidates {
             for part in &candidate.content.parts {
                 match part {
-                    PartResponse::Text(text) => println!("Response: {}", text),
+                    PartResponse::Text(text) => {
+                        println!("Response: {}", text.clone())
+                        history.push(Content {
+                            parts: vec![ContentPart::Text(text.clone())],
+                            role: Role::Model,
+                        });
+                    },
                     _ => {}
                 }
             }
