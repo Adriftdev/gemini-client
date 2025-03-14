@@ -15,6 +15,7 @@ pub enum Role {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GenerateContentRequest {
+    pub system_instruction: Option<Content>,
     pub contents: Vec<Content>,
     pub tools: Option<Vec<ToolConfig>>,
 }
