@@ -83,6 +83,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         PartResponse::Text(text) => text,
         PartResponse::FunctionCall(_) => "Function call found",
         PartResponse::FunctionResponse(_) => "Function response found",
+        PartResponse::ExecutableCode(_) => "Executable code found",
+        PartResponse::CodeExecutionResult(_) => "Code execution result found",
     };
 
     println!("{}", weather);

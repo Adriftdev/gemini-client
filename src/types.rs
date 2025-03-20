@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -23,10 +24,23 @@ pub struct GenerateContentRequest {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ToolConfig {
+    // will work for both v1 and v2 models
     #[serde(rename = "function_declaration")]
     FunctionDeclaration(ToolConfigFunctionDeclaration),
+
+    /* NOTE: For v1 models will be depreciated by google in 2025 */
     DynamicRetieval {
         google_search_retrieval: DynamicRetrieval,
+    },
+
+    /* NOTE: Used by v2 models if they have search built in */
+    GoogleSearch {
+        google_search: serde_json::Value,
+    },
+
+    /* NOTE: Used by v2 models if they have the code execution built in */
+    CodeExecution {
+        code_execution: serde_json::Value,
     },
 }
 
@@ -44,6 +58,10 @@ pub enum ContentPart {
     FunctionCall(FunctionCall),
     #[serde(rename = "functionResponse")]
     FunctionResponse(FunctionResponse),
+    #[serde(rename = "executableCode")]
+    ExecutableCode(ExecutableCode),
+    #[serde(rename = "codeExecutionResult")]
+    CodeExecutionResult(Value),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -111,6 +129,10 @@ pub enum PartResponse {
     FunctionCall(FunctionCall),
     #[serde(rename = "functionResponse")]
     FunctionResponse(FunctionResponse),
+    #[serde(rename = "executableCode")]
+    ExecutableCode(ExecutableCode),
+    #[serde(rename = "codeExecutionResult")]
+    CodeExecutionResult(Value),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -129,4 +151,9 @@ pub struct FunctionResponse {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FunctionResponsePayload {
     pub content: serde_json::Value,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ExecutableCode {
+    pub code: String,
 }

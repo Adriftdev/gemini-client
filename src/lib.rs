@@ -105,6 +105,8 @@ impl GeminiClient {
                                 }
                             }
                             PartResponse::FunctionResponse(_) => return Ok(response),
+                            PartResponse::ExecutableCode(_) => return Ok(response),
+                            PartResponse::CodeExecutionResult(_) => return Ok(response),
                         }
                     } else {
                         return Ok(response);
@@ -118,3 +120,4 @@ impl GeminiClient {
         }
     }
 }
+
