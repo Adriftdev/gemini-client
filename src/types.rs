@@ -54,6 +54,8 @@ pub struct Content {
 pub enum ContentPart {
     #[serde(rename = "text")]
     Text(String),
+    #[serde(rename = "inlineData")]
+    InlineData(InlineData),
     #[serde(rename = "fileData")]
     FileData(FileData),
     #[serde(rename = "functionCall")]
