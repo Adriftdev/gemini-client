@@ -66,13 +66,8 @@ pub enum ContentPart {
     CodeExecutionResult(Value),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct FileData {
-    #[serde(rename = "mimeType")]
-    mime_type: String,
-    #[serde(rename = "fileUri")]
-    file_uri: String,
-}
+
+
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ToolConfigFunctionDeclaration {
@@ -166,4 +161,19 @@ pub struct FunctionResponsePayload {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExecutableCode {
     pub code: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InlineData {
+    #[serde(rename = "mimeType")]
+    mime_type: String,
+    data: String
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FileData {
+    #[serde(rename = "mimeType")]
+    mime_type: String,
+    #[serde(rename = "fileUri")]
+    file_uri: String,
 }
