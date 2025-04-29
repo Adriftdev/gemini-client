@@ -54,6 +54,8 @@ pub struct Content {
 pub enum ContentPart {
     #[serde(rename = "text")]
     Text(String),
+    #[serde(rename = "fileData")]
+    FileData(FileData),
     #[serde(rename = "functionCall")]
     FunctionCall(FunctionCall),
     #[serde(rename = "functionResponse")]
@@ -62,6 +64,14 @@ pub enum ContentPart {
     ExecutableCode(ExecutableCode),
     #[serde(rename = "codeExecutionResult")]
     CodeExecutionResult(Value),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FileData {
+    #[serde(rename = "mimeType")]
+    mime_type: String,
+    #[serde(rename = "fileUri")]
+    file_uri: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
