@@ -19,6 +19,7 @@ pub struct GenerateContentRequest {
     pub system_instruction: Option<Content>,
     pub contents: Vec<Content>,
     pub tools: Option<Vec<ToolConfig>>,
+    pub generationConfig: Option<GenerationConfig>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -48,6 +49,46 @@ pub enum ToolConfig {
 pub struct Content {
     pub parts: Vec<ContentPart>,
     pub role: Role,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GenerationConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stop_sequences: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_mime_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_schema: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_modalities: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub candidate_count: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_p: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_k: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seed: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub presence_penalty: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub frequency_penalty: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_logprobs: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logprobs: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_enhanced_civic_answers: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speech_config: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking_config: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub media_resolution: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
