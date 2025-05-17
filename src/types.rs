@@ -19,7 +19,7 @@ pub struct GenerateContentRequest {
     pub system_instruction: Option<Content>,
     pub contents: Vec<Content>,
     pub tools: Option<Vec<ToolConfig>>,
-    pub generationConfig: Option<GenerationConfig>,
+    pub generation_config: Option<GenerationConfig>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
