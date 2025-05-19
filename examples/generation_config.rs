@@ -25,9 +25,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "role": "user"
             }
         ],
-        "generationConfig": {
-            "responseMimeType": "application/json",
-            "responseSchema": {
+        "generation_config": {
+            "response_mime_type": "application/json",
+            "response_schema": {
                 "type": "object",
                 "properties": {
                     "emoji": {
