@@ -11,7 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let api_key = std::env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY must be set");
 
-    let client = GeminiClient::new(api_key);
+    let client = GeminiClient::new(api_key.to_string());
     let model_name = "gemini-1.5-flash";
 
     let req_json = json!({
@@ -25,9 +25,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "role": "user"
             }
         ],
-        "generation_config": {
-            "response_mime_type": "application/json",
-            "response_schema": {
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "responseSchema": {
                 "type": "object",
                 "properties": {
                     "emoji": {
