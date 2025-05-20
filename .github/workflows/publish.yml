@@ -1,4 +1,4 @@
-name: Build and Publish Desktop Release
+name: Build and Publish to crates.io
 
 on:
   release:
