@@ -19,6 +19,7 @@ pub struct GenerateContentRequest {
     pub system_instruction: Option<Content>,
     pub contents: Vec<Content>,
     pub tools: Option<Vec<ToolConfig>>,
+    #[serde(rename = "generationConfig")]
     pub generation_config: Option<GenerationConfig>,
 }
 
@@ -53,23 +54,44 @@ pub struct Content {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GenerationConfig {
+    #[serde(rename = "stopSequences", skip_serializing_if = "Option::is_none")]
     pub stop_sequences: Option<Vec<String>>,
+    #[serde(rename = "responseMimeType", skip_serializing_if = "Option::is_none")]
     pub response_mime_type: Option<String>,
+    #[serde(rename = "responseSchema", skip_serializing_if = "Option::is_none")]
     pub response_schema: Option<serde_json::Value>,
+    #[serde(rename = "responseModalities", skip_serializing_if = "Option::is_none")]
     pub response_modalities: Option<Vec<String>>,
+    #[serde(rename = "candidateCount", skip_serializing_if = "Option::is_none")]
     pub candidate_count: Option<i32>,
+    #[serde(rename = "maxOutputTokens", skip_serializing_if = "Option::is_none")]
     pub max_output_tokens: Option<i32>,
+    #[serde(rename = "temperature", skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f64>,
+    #[serde(rename = "topP", skip_serializing_if = "Option::is_none")]
     pub top_p: Option<f64>,
+    #[serde(rename = "topK", skip_serializing_if = "Option::is_none")]
     pub top_k: Option<i32>,
+    #[serde(rename = "seed", skip_serializing_if = "Option::is_none")]
     pub seed: Option<i64>,
+    #[serde(rename = "presencePenalty", skip_serializing_if = "Option::is_none")]
     pub presence_penalty: Option<f64>,
+    #[serde(rename = "frequencyPenalty", skip_serializing_if = "Option::is_none")]
     pub frequency_penalty: Option<f64>,
+    #[serde(rename = "responseLogprobs", skip_serializing_if = "Option::is_none")]
     pub response_logprobs: Option<bool>,
+    #[serde(rename = "logprobs", skip_serializing_if = "Option::is_none")]
     pub logprobs: Option<i32>,
+    #[serde(
+        rename = "enableEnhancedCivicAnswers",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub enable_enhanced_civic_answers: Option<bool>,
+    #[serde(rename = "speechConfig", skip_serializing_if = "Option::is_none")]
     pub speech_config: Option<serde_json::Value>,
+    #[serde(rename = "thinkingConfig", skip_serializing_if = "Option::is_none")]
     pub thinking_config: Option<serde_json::Value>,
+    #[serde(rename = "mediaResolution", skip_serializing_if = "Option::is_none")]
     pub media_resolution: Option<String>,
 }
 
