@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Role {
     #[serde(rename = "user")]
     User,
@@ -14,7 +14,7 @@ pub enum Role {
     Tool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GenerateContentRequest {
     pub system_instruction: Option<Content>,
     pub contents: Vec<Content>,
@@ -23,7 +23,7 @@ pub struct GenerateContentRequest {
     pub generation_config: Option<GenerationConfig>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum ToolConfig {
     // will work for both v1 and v2 models
@@ -46,13 +46,13 @@ pub enum ToolConfig {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Content {
     pub parts: Vec<ContentPart>,
     pub role: Role,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GenerationConfig {
     #[serde(rename = "stopSequences", skip_serializing_if = "Option::is_none")]
     pub stop_sequences: Option<Vec<String>>,
@@ -95,7 +95,7 @@ pub struct GenerationConfig {
     pub media_resolution: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ContentPart {
     #[serde(rename = "text")]
     Text(String),
@@ -113,18 +113,18 @@ pub enum ContentPart {
     CodeExecutionResult(Value),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ToolConfigFunctionDeclaration {
     pub function_declarations: Vec<FunctionDeclaration>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename = "google_search_retrieval")]
 pub struct DynamicRetrieval {
     pub dynamic_retrieval_config: DynamicRetrievalConfig,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename = "dynamic_retrieval_config")]
 pub struct DynamicRetrievalConfig {
     pub mode: String,
@@ -155,22 +155,22 @@ pub struct ParameterProperty {
     pub enum_values: Option<Vec<String>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GenerateContentResponse {
     pub candidates: Option<Vec<Candidate>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Candidate {
     pub content: ContentResponse,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ContentResponse {
     pub parts: Vec<PartResponse>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum PartResponse {
     #[serde(rename = "text")]
     Text(String),
@@ -191,30 +191,30 @@ pub struct FunctionCall {
     pub arguments: serde_json::Value,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FunctionResponse {
     pub name: String,
     pub response: FunctionResponsePayload,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FunctionResponsePayload {
     pub content: serde_json::Value,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ExecutableCode {
     pub code: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct InlineData {
     #[serde(rename = "mimeType")]
     mime_type: String,
     data: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FileData {
     #[serde(rename = "mimeType")]
     mime_type: String,
