@@ -58,12 +58,12 @@ pub struct ToolConfig {
 #[serde(rename_all = "camelCase")]
 pub struct FunctionCallingConfig {
     pub mode: FunctionCallingMode,
-    // A set of function names that, when provided, limits the functions the
-    // model will call.
-    //
-    // This should only be set when the Mode is ANY. Function names should match
-    // [FunctionDeclaration.name]. With mode set to ANY, model will predict a
-    // function call from the set of function names provided.
+    /// A set of function names that, when provided, limits the functions the
+    /// model will call.
+    ///
+    /// This should only be set when the Mode is ANY. Function names should match
+    /// [FunctionDeclaration.name]. With mode set to ANY, model will predict a
+    /// function call from the set of function names provided.
     #[serde(default)]
     pub allowed_function_names: Vec<String>,
 }
@@ -215,8 +215,8 @@ pub enum PromptFeedback {
 #[serde(rename_all = "camelCase")]
 pub struct UsageMetadata {
     prompt_token_count: u32,
-    candidates_token_count: u32,
     total_token_count: u32,
+    candidates_token_count: Option<u32>,
     cached_content_token_count: Option<u32>,
     tool_use_prompt_token_count: Option<u32>,
     thoughts_token_count: Option<u32>,
@@ -384,14 +384,12 @@ pub struct CitationSource {
     pub license: Option<String>,
 }
 
-// SafetyRating
-//
-// Safety rating for a piece of content.
-//
-// The safety rating contains the category of harm and the harm probability
-// level in that category for a piece of content. Content is classified for
-// safety across a number of harm categories and the probability of the harm
-// classification is included here.
+/// Safety rating for a piece of content.
+///
+/// The safety rating contains the category of harm and the harm probability
+/// level in that category for a piece of content. Content is classified for
+/// safety across a number of harm categories and the probability of the harm
+/// classification is included here.
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SatisfyRating {
@@ -494,12 +492,16 @@ pub enum FinishReason {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentPart {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_false")]
     pub thought: bool,
     #[serde(flatten)]
     pub data: ContentData,
     #[serde(skip_serializing)]
     pub metadata: Option<serde_json::Value>,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 impl From<ContentData> for ContentPart {

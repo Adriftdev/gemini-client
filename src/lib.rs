@@ -130,17 +130,12 @@ impl GeminiClient {
             self.api_url, self.api_key
         );
 
-        println!("{}", serde_json::to_string_pretty(&request).unwrap());
-
         let response = self.http_client.post(&url).json(request).send().await?;
         if !response.status().is_success() {
             return handle_error::<GenerateContentResponse>(response).await;
         }
 
-        let json: serde_json::Value = response.json().await?;
-
-        Ok(serde_json::from_value(json)?)
-        // Ok(response.json().await?)
+        Ok(response.json().await?)
     }
 
     /// Generates a streamed response from the model given an input
@@ -155,8 +150,6 @@ impl GeminiClient {
             "{}/models/{model}:streamGenerateContent?alt=sse&key={}",
             self.api_url, self.api_key
         );
-
-        println!("{}", serde_json::to_string_pretty(&request).unwrap());
 
         let mut stream = self
             .http_client
