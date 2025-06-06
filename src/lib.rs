@@ -176,6 +176,19 @@ impl GeminiClient {
                     },
                     Err(e) => match e {
                         reqwest_eventsource::Error::StreamEnded => stream.close(),
+                        reqwest_eventsource::Error::InvalidContentType(content_type, response) => {
+                            let header = content_type.to_str().unwrap_or_default();
+                            let body = response.text().await?;
+                            yield Err(GeminiError::Api(format!(
+                                "Invalid content type {header}: {body}"
+                            )))
+                        }
+                        reqwest_eventsource::Error::InvalidStatusCode(code, response) => {
+                            let body = response.text().await?;
+                            yield Err(GeminiError::Api(format!(
+                                "Invalid status code {code}: {body}"
+                            )))
+                        }
                         _ => yield Err(e.into()),
                     }
                 }
