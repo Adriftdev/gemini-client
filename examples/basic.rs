@@ -1,5 +1,5 @@
 use gemini_client_rs::{
-    types::{GenerateContentRequest, PartResponse},
+    types::{ContentData, GenerateContentRequest},
     GeminiClient,
 };
 
@@ -33,12 +33,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let response = client.generate_content(model_name, &request).await?;
 
-    let candidates = response.candidates.unwrap();
-
-    for candidate in &candidates {
+    for candidate in &response.candidates {
         for part in &candidate.content.parts {
-            match part {
-                PartResponse::Text(text) => println!("{}", text),
+            match &part.data {
+                ContentData::Text(text) => println!("{}", text),
                 _ => { /* Ignore other part types as we are not using tools */ }
             }
         }

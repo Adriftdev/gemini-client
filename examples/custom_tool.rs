@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use gemini_client_rs::{
-    types::{GenerateContentRequest, PartResponse},
-    GeminiClient,
+    types::{ContentData, GenerateContentRequest},
+    FunctionHandler, GeminiClient,
 };
 
 use dotenvy::dotenv;
@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ],
         "tools": [
              {
-                "function_declarations": [
+                "functionDeclarations": [
                     {
                         "name": "get_current_weather",
                         "description": "Get the current weather in a given location",
@@ -52,10 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let request = serde_json::from_value::<GenerateContentRequest>(req_json)?;
 
-    let mut function_handlers: HashMap<
-        String,
-        Box<dyn Fn(&mut serde_json::Value) -> Result<serde_json::Value, String> + Send + Sync>,
-    > = HashMap::new();
+    let mut function_handlers: HashMap<String, FunctionHandler> = HashMap::new();
 
     function_handlers.insert(
         "get_current_weather".to_string(),
@@ -73,18 +70,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .generate_content_with_function_calling(model_name, request, &function_handlers)
         .await?;
 
-    let candidates = response.candidates.unwrap();
-
-    let first_candidate = candidates.first().unwrap();
+    let first_candidate = response.candidates.first().unwrap();
 
     let first_part = first_candidate.content.parts.first().unwrap();
 
-    let weather = match first_part {
-        PartResponse::Text(text) => text,
-        PartResponse::FunctionCall(_) => "Function call found",
-        PartResponse::FunctionResponse(_) => "Function response found",
-        PartResponse::ExecutableCode(_) => "Executable code found",
-        PartResponse::CodeExecutionResult(_) => "Code execution result found",
+    let weather = match &first_part.data {
+        ContentData::Text(text) => text,
+        ContentData::FunctionCall(_) => "Function call found",
+        ContentData::FunctionResponse(_) => "Function response found",
+        ContentData::ExecutableCode(_) => "Executable code found",
+        ContentData::CodeExecutionResult(_) => "Code execution result found",
+        ContentData::InlineData(_) => "Inline data found",
+        ContentData::FileData(_) => "File data found",
     };
 
     println!("{}", weather);

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use gemini_client_rs::{
-    types::{GenerateContentRequest, PartResponse},
+    types::{ContentData, GenerateContentRequest},
     GeminiClient,
 };
 
@@ -30,10 +30,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ],
         "tools": [
             {
-                "google_search_retrieval": {
-                    "dynamic_retrieval_config": {
+                "googleSearchRetrieval": {
+                    "dynamicRetrievalConfig": {
                         "mode": "MODE_DYNAMIC",
-                        "dynamic_threshold": 0.5
+                        "dynamicThreshold": 0.5
                     }
                 }
             }
@@ -45,12 +45,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .generate_content_with_function_calling(model_name, request, &HashMap::new())
         .await?;
 
-    let candidates = response.candidates.unwrap();
-
-    for candidate in &candidates {
+    for candidate in &response.candidates {
         for part in &candidate.content.parts {
-            match part {
-                PartResponse::Text(text) => println!("{}", text),
+            match &part.data {
+                ContentData::Text(text) => println!("{}", text),
                 _ => { /* Ignore other part types as we are not using tools */ }
             }
         }
