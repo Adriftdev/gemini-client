@@ -81,7 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         (
             "attendees".to_string(),
             ParameterProperty::Array(ParameterPropertyArray {
-                description: "List of people attending the meeting.".to_string(),
+                description: Some("List of people attending the meeting.".to_string()),
                 items: Box::new(ParameterProperty::String(ParameterPropertyString {
                     description: None,
                     enum_values: None,
