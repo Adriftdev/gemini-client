@@ -147,12 +147,38 @@ pub struct FunctionParameters {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ParameterProperty {
-    #[serde(rename = "type")]
-    pub property_type: String,
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum ParameterProperty {
+    String(ParameterPropertyString),
+    Integer(ParameterPropertyInteger),
+    Boolean(ParameterPropertyBoolean),
+    Array(ParameterPropertyArray),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ParameterPropertyArray {
     pub description: String,
+    pub items: Box<ParameterProperty>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ParameterPropertyString {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "enum")]
     pub enum_values: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ParameterPropertyInteger {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ParameterPropertyBoolean {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
