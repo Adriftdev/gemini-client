@@ -1,6 +1,6 @@
 use dotenvy::dotenv;
 use gemini_client_rs::{
-    types::{GenerateContentRequest, PartResponse},
+    types::{ContentData, GenerateContentRequest},
     GeminiClient,
 };
 use serde_json::json;
@@ -48,13 +48,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let response = client.generate_content(model_name, &request).await?;
 
-    if let Some(candidates) = response.candidates {
-        for candidate in &candidates {
-            for part in &candidate.content.parts {
-                match part {
-                    PartResponse::Text(text) => println!("Response: {}", text),
-                    _ => println!("Unexpected response type"),
-                }
+    for candidate in &response.candidates {
+        for part in &candidate.content.parts {
+            match &part.data {
+                ContentData::Text(text) => println!("Response: {}", text),
+                _ => println!("Unexpected response type"),
             }
         }
     }
