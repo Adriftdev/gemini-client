@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -164,8 +166,52 @@ pub struct DynamicRetrievalConfig {
 pub struct FunctionDeclaration {
     pub name: String,
     pub description: String,
-    pub parameters: Option<serde_json::Value>,
-    pub response: Option<serde_json::Value>,
+    pub parameters: Option<FunctionParameters>,
+    pub response: Option<FunctionParameters>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FunctionParameters {
+    #[serde(rename = "type")]
+    pub parameter_type: String,
+    pub properties: HashMap<String, ParameterProperty>,
+    pub required: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum ParameterProperty {
+    String(ParameterPropertyString),
+    Integer(ParameterPropertyInteger),
+    Boolean(ParameterPropertyBoolean),
+    Array(ParameterPropertyArray),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ParameterPropertyArray {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub items: Box<ParameterProperty>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ParameterPropertyString {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "enum")]
+    pub enum_values: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ParameterPropertyInteger {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ParameterPropertyBoolean {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 /// Response from the model supporting multiple candidate responses.

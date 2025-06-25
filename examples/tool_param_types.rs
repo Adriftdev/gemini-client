@@ -41,9 +41,9 @@ use std::collections::HashMap;
 /// This will use the specified model instead of the default "gemini-2.5-flash".
 use gemini_client_rs::{
     types::{
-        Content, ContentPart, FunctionDeclaration, FunctionParameters, GenerateContentRequest,
-        ParameterProperty, ParameterPropertyArray, ParameterPropertyBoolean,
-        ParameterPropertyInteger, ParameterPropertyString, PartResponse, Role, ToolConfig,
+        Content, ContentData, ContentPart, FunctionDeclaration, FunctionParameters,
+        GenerateContentRequest, ParameterProperty, ParameterPropertyArray,
+        ParameterPropertyBoolean, ParameterPropertyInteger, ParameterPropertyString, Role, Tool,
         ToolConfigFunctionDeclaration,
     },
     GeminiClient,
@@ -75,7 +75,12 @@ struct MeetingResponse {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
 
-    // Build the tool schema using Rust types
+    let current_date = "2025-06-19";
+    let system_message = format!(
+        "You are a helpful assistant. Today's date is {}. When scheduling meetings, use appropriate dates relative to today.",
+        current_date
+    );
+
     let properties = HashMap::from([
         // attendees: array of strings
         (
@@ -146,7 +151,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         name: "schedule_meeting".to_string(),
         description: "Schedules a meeting with specified attendees at a given time and date."
             .to_string(),
-        parameters: FunctionParameters {
+        parameters: Some(FunctionParameters {
             parameter_type: "object".to_string(),
             properties,
             required: Some(vec![
@@ -158,36 +163,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "category".to_string(),
                 "is_public".to_string(),
             ]),
-        },
+        }),
+        response: None,
     };
-
-    let tool_config = ToolConfig::FunctionDeclaration(ToolConfigFunctionDeclaration {
-        function_declarations: vec![function_declaration.clone()],
-    });
-
-    let current_date = "2025-06-19";
-    let system_message = format!(
-        "You are a helpful assistant. Today's date is {}. When scheduling meetings, use appropriate dates relative to today.",
-        current_date
-    );
 
     let request = GenerateContentRequest {
         system_instruction: Some(Content {
-            parts: vec![ContentPart::Text(system_message)],
+            parts: vec![ContentPart {
+                data: ContentData::Text(system_message),
+                thought: false,
+                metadata: None,
+            }],
             role: Role::User,
         }),
         contents: vec![Content {
-            parts: vec![ContentPart::Text(
-                "Please schedule a team meeting for tomorrow at 2 PM with John, Sarah, and Mike to discuss the quarterly review. tag it as work, it's a P5, and make it public".to_string(),
-            )],
+            parts: vec![ContentPart{
+                data: ContentData::Text( "Please schedule a team meeting for tomorrow at 2 PM with John, Sarah, and Mike to discuss the quarterly review. tag it as work, it's a P5, and make it public".to_string()),
+                metadata: None,
+                thought: false
+            }],
             role: Role::User,
         }],
-        tools: Some(vec![tool_config]),
+        tools: vec![
+            Tool::FunctionDeclaration(
+                ToolConfigFunctionDeclaration{
+                    function_declarations: vec![
+                        function_declaration.clone()
+                                    ]
+                }
+            ),
+        ],
+        tool_config: None,
         generation_config: None,
     };
-
-    // Serialize the function declaration to JSON for verification
-    let serialized_function = serde_json::to_value(&function_declaration)?;
 
     // Expected JSON schema for comparison
     let expected_schema = json!({
@@ -229,7 +237,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
             "required": ["attendees", "date", "time", "topic", "priority", "category", "is_public"],
         },
+        "response": null,
     });
+
+    // Serialize the function declaration to JSON for verification
+    let serialized_function = serde_json::to_value(&function_declaration)?;
 
     println!("Serialized function declaration:");
     println!("{}", serde_json::to_string_pretty(&serialized_function)?);
@@ -310,16 +322,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await
         {
             Ok(response) => {
-                let candidates = response.candidates.unwrap();
+                let candidates = response.candidates.iter().collect::<Vec<_>>();
                 let first_candidate = candidates.first().unwrap();
                 let first_part = first_candidate.content.parts.first().unwrap();
 
                 let result = match first_part {
-                    PartResponse::Text(text) => text,
-                    PartResponse::FunctionCall(_) => "Function call found",
-                    PartResponse::FunctionResponse(_) => "Function response found",
-                    PartResponse::ExecutableCode(_) => "Executable code found",
-                    PartResponse::CodeExecutionResult(_) => "Code execution result found",
+                    ContentPart {
+                        data: ContentData::Text(text),
+                        thought: false,
+                        metadata: None,
+                    } => text.clone(),
+                    ContentPart {
+                        data: ContentData::FunctionResponse(result),
+                        thought: false,
+                        metadata: None,
+                    } => result.response.content.to_string(),
+                    _ => "No valid response found".to_string(),
                 };
 
                 println!("🤖 Model Response:");
