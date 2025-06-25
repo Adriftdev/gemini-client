@@ -41,10 +41,10 @@ use std::collections::HashMap;
 /// This will use the specified model instead of the default "gemini-2.5-flash".
 use gemini_client_rs::{
     types::{
-        Content, ContentData, ContentPart, FunctionDeclaration, FunctionParameters,
-        GenerateContentRequest, ParameterProperty, ParameterPropertyArray,
-        ParameterPropertyBoolean, ParameterPropertyInteger, ParameterPropertyString, Role, Tool,
-        ToolConfigFunctionDeclaration,
+        Content, ContentData, ContentPart, FunctionCallingConfig, FunctionDeclaration,
+        FunctionParameters, GenerateContentRequest, GenerationConfig, ParameterProperty,
+        ParameterPropertyArray, ParameterPropertyBoolean, ParameterPropertyInteger,
+        ParameterPropertyString, Role, Tool, ToolConfig, ToolConfigFunctionDeclaration,
     },
     GeminiClient,
 };
@@ -223,12 +223,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ToolConfigFunctionDeclaration{
                     function_declarations: vec![
                         function_declaration.clone()
-                                    ]
+                    ]
                 }
             ),
         ],
-        tool_config: None,
-        generation_config: None,
+        tool_config: Some(ToolConfig{function_calling_config: FunctionCallingConfig{
+            mode: gemini_client_rs::types::FunctionCallingMode::Validated,
+            allowed_function_names: vec![]
+        }}),
+        generation_config: Some(GenerationConfig{
+            temperature: Some(0.0), // Don't want any of that creativity.
+            seed: Some(42), // Set the seed to the meaning of life obviously.
+            ..Default::default()
+        }),
     };
 
     // Expected JSON schema for comparison
