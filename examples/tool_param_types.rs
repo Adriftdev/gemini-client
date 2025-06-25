@@ -147,6 +147,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ),
     ]);
 
+    let response_properties = HashMap::from([
+        // No response properties defined for this function
+        // This can be extended later if needed
+        (
+            "status".to_string(),
+            ParameterProperty::String(ParameterPropertyString {
+                description: Some("Status of the meeting scheduling operation.".to_string()),
+                enum_values: None,
+            }),
+        ),
+        (
+            "meeting_id".to_string(),
+            ParameterProperty::String(ParameterPropertyString {
+                description: Some("Unique identifier for the scheduled meeting.".to_string()),
+                enum_values: None,
+            }),
+        ),
+        (
+            "message".to_string(),
+            ParameterProperty::String(ParameterPropertyString {
+                description: Some("Detailed message about the scheduling result.".to_string()),
+                enum_values: None,
+            }),
+        ),
+    ]);
+
     let function_declaration = FunctionDeclaration {
         name: "schedule_meeting".to_string(),
         description: "Schedules a meeting with specified attendees at a given time and date."
@@ -164,7 +190,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "is_public".to_string(),
             ]),
         }),
-        response: None,
+        response: Some(FunctionParameters {
+            parameter_type: "object".to_string(),
+            properties: response_properties,
+            required: Some(vec![
+                "status".to_string(),
+                "meeting_id".to_string(),
+                "message".to_string(),
+            ]),
+        }),
     };
 
     let request = GenerateContentRequest {
@@ -237,7 +271,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
             "required": ["attendees", "date", "time", "topic", "priority", "category", "is_public"],
         },
-        "response": null,
+        "response": {
+            "properties": {
+              "meeting_id": {
+                "description": "Unique identifier for the scheduled meeting.",
+                "type": "string"
+              },
+              "message": {
+                "description": "Detailed message about the scheduling result.",
+                "type": "string"
+              },
+              "status": {
+                "description": "Status of the meeting scheduling operation.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "meeting_id",
+              "message"
+            ],
+            "type": "object"
+        },
     });
 
     // Serialize the function declaration to JSON for verification
