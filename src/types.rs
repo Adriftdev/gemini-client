@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -278,6 +278,8 @@ pub struct UsageMetadata {
     candidates_tokens_details: Vec<ModalityTokenCount>,
     #[serde(default)]
     tool_use_prompt_tokens_details: Vec<ModalityTokenCount>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub traffic_type: Option<TrafficType>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -285,6 +287,20 @@ pub struct UsageMetadata {
 pub struct ModalityTokenCount {
     modality: Modality,
     token_count: u32,
+}
+
+/// Request traffic type. Indicates whether the request consumes Pay-As-You-Go or
+/// Provisioned Throughput quota.
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Default, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum TrafficType {
+    /// Unspecified request traffic type.
+    #[default]
+    TrafficTypeUnspecified,
+    /// Type for Pay-As-You-Go traffic.
+    OnDemand,
+    /// Type for Provisioned Throughput traffic.
+    ProvisionedThroughput,
 }
 
 /// Content Part modality
