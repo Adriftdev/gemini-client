@@ -45,6 +45,7 @@ pub enum Tool {
     },
 
     UrlContext {
+        #[serde(rename = "url_context")]
         url_context: serde_json::Value,
     },
 
