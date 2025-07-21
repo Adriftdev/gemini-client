@@ -44,6 +44,10 @@ pub enum Tool {
         google_search: serde_json::Value,
     },
 
+    UrlContext {
+        url_context: serde_json::Value,
+    },
+
     /* NOTE: Used by v2 models if they have the code execution built in */
     CodeExecution {
         code_execution: serde_json::Value,
@@ -338,10 +342,9 @@ pub struct Candidate {
     /// answer. This field is populated for `GenerateAnswer` calls.
     #[serde(default)]
     pub grounding_attributions: Vec<GroundingAttribution>,
-    // TODO
-    // /// Grounding metadata for the candidate. This field is populated for
-    // /// `GenerateContent` calls.
-    // pub grounding_metadata: Option<GroundingMetadata>,
+    /// Grounding metadata for the candidate. This field is populated for
+    /// `GenerateContent` calls.
+    pub grounding_metadata: Option<GroundingMetadata>,
     /// Average log probability score of the candidate.
     pub avg_logprobs: Option<f32>,
     // TODO
@@ -350,9 +353,8 @@ pub struct Candidate {
     // TODO
     // /// Metadata related to url context retrieval tool.
     // pub url_retrieval_metadata: Option<UrlRetrievalMetadata>,
-    // TODO
-    // /// Metadata related to url context retrieval tool.
-    // pub url_context_metadata: Option<UrlContextMetadata>,
+    /// Metadata related to url context retrieval tool.
+    pub url_context_metadata: Option<UrlContextMetadata>,
     /// Index of the candidate in the list of response candidates.
     pub index: Option<u32>,
 }
@@ -409,6 +411,7 @@ pub struct SemanticRetrieverChunk {
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CitationMetadata {
+    #[serde(default)]
     pub citation_sources: Vec<CitationSource>,
 }
 
@@ -500,6 +503,137 @@ pub enum HarmCategory {
     DangerousContent,
     /// Gemini - Content that may be used to harm civic integrity.
     CivicIntegrity,
+}
+
+/// Metadata returned to client when grounding is enabled.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GroundingMetadata {
+    /// List of supporting references retrieved from specified grounding source.
+    #[serde(default)]
+    pub grounding_chunks: Vec<GroundingChunk>,
+    /// List of grounding support.
+    #[serde(default)]
+    pub grounding_supports: Vec<GroundingSupport>,
+    /// Web search queries for the following-up web search.
+    #[serde(default)]
+    pub web_search_queries: Vec<String>,
+    /// Optional. Google search entry for the following-up web searches.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub search_entry_point: Option<SearchEntryPoint>,
+    /// Metadata related to retrieval in the grounding flow.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retrieval_metadata: Option<RetrievalMetadata>,
+}
+
+/// Grounding chunk.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum GroundingChunk {
+    /// Grounding chunk from the web.
+    Web(Web),
+}
+
+/// Chunk from the web
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Web {
+    /// URI reference of the chunk
+    pub uri: String,
+    /// Title of the chunk
+    pub title: String,
+}
+
+/// Grounding support.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GroundingSupport {
+    /// A list of indices (into 'grounding_chunk') specifying the citations associated with the claim.
+    /// For instance [1,3,4] means that grounding_chunk[1], grounding_chunk[3], grounding_chunk[4] are the
+    /// retrieved content attributed to the claim.
+    #[serde(default)]
+    pub grounding_chunk_indices: BTreeSet<u32>,
+    /// Confidence score of the support references. Ranges from 0 to 1. 1 is the most confident.
+    /// This list must have the same size as the groundingChunkIndices.
+    #[serde(default)]
+    pub confidence_scores: Vec<f64>,
+    /// Segment of the content this support belongs to.
+    pub segment: Segment,
+}
+
+/// Segment of the content.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Segment {
+    /// Output only. The index of a Part object within its parent Content object.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub part_index: Option<u32>,
+    /// Output only. Start index in the given Part, measured in bytes. Offset from the start of the Part, inclusive, starting at zero.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_index: Option<u32>,
+    /// Output only. End index in the given Part, measured in bytes. Offset from the start of the Part, exclusive, starting at zero.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_index: Option<u32>,
+    /// Output only. The text corresponding to the segment from the response.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+}
+
+/// Google search entry point.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchEntryPoint {
+    /// Optional. Web content snippet that can be embedded in a web page or an app webview.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rendered_content: Option<String>,
+    /// Optional. Base64 encoded JSON representing array of <search term, search url> tuple.
+    /// A base64-encoded string.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sdk_blob: Option<String>,
+}
+
+/// Retrieval metadata for grounding
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RetrievalMetadata {
+    /// Optional. Score indicating how likely information from google search could help answer the prompt.
+    /// The score is in the range [0, 1], where 0 is the least likely and 1 is the most likely.
+    /// This score is only populated when google search grounding and dynamic retrieval is enabled.
+    /// It will be compared to the threshold to determine whether to trigger google search.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub google_search_dynamic_retrieval_score: Option<f64>,
+}
+
+/// Metadata related to url context retrieval tool.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct UrlContextMetadata {
+    /// List of url context.
+    #[serde(default)]
+    pub url_metadata: Vec<UrlMetadata>,
+}
+
+/// Context of the a single url retrieval.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct UrlMetadata {
+    /// Retrieved url by the tool.
+    pub retrieved_url: String,
+    /// Status of the url retrieval.
+    pub url_retrieval_status: UrlRetrievalStatus,
+}
+
+/// Status of the url retrieval.
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum UrlRetrievalStatus {
+    /// Default value. This value is unused.
+    #[default]
+    UrlRetrievalStatusUnspecified,
+    /// Url retrieval is successful.
+    Success,
+    /// Url retrieval is failed due to error.
+    Error,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
