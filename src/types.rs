@@ -532,7 +532,7 @@ pub enum FinishReason {
     MalformedFunctionCall,
     /// Token generation stopped because generated images contain safety
     /// violations.
-    ImageSafety
+    ImageSafety,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
