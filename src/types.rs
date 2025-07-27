@@ -533,6 +533,11 @@ pub enum FinishReason {
     /// Token generation stopped because generated images contain safety
     /// violations.
     ImageSafety,
+
+    /// The model generated a function call. This is used in the context of
+    /// function calling. To Support Agentic Function Calling, the model
+    /// generated a function call that was not executed.
+    ToolExecution,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -544,6 +549,27 @@ pub struct ContentPart {
     pub data: ContentData,
     #[serde(skip_serializing)]
     pub metadata: Option<serde_json::Value>,
+}
+
+impl ContentPart {
+    pub fn new_text(text: &str) -> Self {
+        Self {
+            data: ContentData::Text(text.to_string()),
+            thought: false,
+            metadata: None,
+        }
+    }
+
+    pub fn new_function_response(name: &str, content: Value) -> Self {
+        Self {
+            data: ContentData::FunctionResponse(FunctionResponse {
+                name: name.to_string(),
+                response: FunctionResponsePayload { content },
+            }),
+            thought: false,
+            metadata: None,
+        }
+    }
 }
 
 fn is_false(value: &bool) -> bool {

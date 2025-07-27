@@ -9,8 +9,32 @@ use types::{
 };
 pub mod types;
 
-pub type FunctionHandler =
-    Box<dyn Fn(&mut serde_json::Value) -> Result<serde_json::Value, String> + Send + Sync>;
+use anyhow::Result;
+use serde_json::Value;
+use std::future::Future;
+use std::pin::Pin; // Using anyhow for cleaner error handling in examples
+
+// The new enum to hold either a sync or async handler
+pub enum FunctionHandler {
+    Sync(Box<dyn Fn(&mut Value) -> Result<Value, String> + Send + Sync>),
+    Async(
+        Box<
+            dyn Fn(&mut Value) -> Pin<Box<dyn Future<Output = Result<Value, String>> + Send>>
+                + Send
+                + Sync,
+        >,
+    ),
+}
+
+impl FunctionHandler {
+    /// Executes the handler, automatically handling whether it's sync or async.
+    pub async fn execute(&self, params: &mut Value) -> Result<Value, String> {
+        match self {
+            FunctionHandler::Sync(handler) => handler(params),
+            FunctionHandler::Async(handler) => handler(params).await,
+        }
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum GeminiError {
@@ -198,48 +222,37 @@ impl GeminiClient {
         loop {
             let response = self.generate_content(model, &request).await?;
 
-            if let Some(candidate) = response.candidates.first() {
-                if let Some(part) = candidate.content.parts.first() {
-                    match &part.data {
-                        ContentData::Text(_) => return Ok(response),
-                        ContentData::FunctionCall(function_call) => {
-                            if let Some(handler) = function_handlers.get(&function_call.name) {
-                                match handler(&mut function_call.arguments.clone()) {
-                                    Ok(result) => {
-                                        request.contents.push(Content {
-                                            parts: vec![ContentData::FunctionCall(
-                                                function_call.clone(),
-                                            )
-                                            .into()],
-                                            role: Role::User,
-                                        });
+            let Some(candidate) = response.candidates.first() else {
+                return Ok(response);
+            };
 
-                                        request.contents.push(Content {
-                                            parts: vec![ContentData::FunctionResponse(
-                                                FunctionResponse {
-                                                    name: function_call.name.clone(),
-                                                    response: FunctionResponsePayload {
-                                                        content: result,
-                                                    },
-                                                },
-                                            )
-                                            .into()],
-                                            role: Role::Tool,
-                                        });
-                                    }
-                                    Err(e) => return Err(GeminiError::FunctionExecution(e)),
-                                }
-                            } else {
-                                return Err(GeminiError::FunctionExecution(format!(
-                                    "Unknown function: {}",
-                                    function_call.name
-                                )));
-                            }
+            let Some(part) = candidate.content.parts.first() else {
+                return Ok(response);
+            };
+
+            if let ContentData::FunctionCall(function_call) = &part.data {
+                request.contents.push(candidate.content.clone());
+
+                if let Some(handler) = function_handlers.get(&function_call.name) {
+                    let mut args = function_call.arguments.clone();
+                    match handler.execute(&mut args).await {
+                        Ok(result) => {
+                            request.contents.push(Content {
+                                parts: vec![ContentData::FunctionResponse(FunctionResponse {
+                                    name: function_call.name.clone(),
+                                    response: FunctionResponsePayload { content: result },
+                                })
+                                .into()],
+                                role: Role::Tool,
+                            });
                         }
-                        _ => return Ok(response),
+                        Err(e) => return Err(GeminiError::FunctionExecution(e)),
                     }
                 } else {
-                    return Ok(response);
+                    return Err(GeminiError::FunctionExecution(format!(
+                        "Unknown function: {}",
+                        function_call.name
+                    )));
                 }
             } else {
                 return Ok(response);

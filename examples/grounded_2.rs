@@ -15,7 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let api_key = std::env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY must be set");
 
     let client = GeminiClient::new(api_key);
-    let model_name = "gemini-2.0-flash";
+    let model_name = "gemini-2.5-flash";
 
     let req_json = json!({
         "contents": [
@@ -35,7 +35,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ]
     });
 
+    println!("Request JSON: {}", req_json);
+
     let request = serde_json::from_value::<GenerateContentRequest>(req_json)?;
+
+    println!("Request: {:?}", request);
     let response = client
         .generate_content_with_function_calling(model_name, request, &HashMap::new())
         .await?;

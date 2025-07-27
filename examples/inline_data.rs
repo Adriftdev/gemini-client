@@ -13,7 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let api_key = std::env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY must be set");
 
     let client = GeminiClient::new(api_key);
-    let model_name = "gemini-1.5-flash";
+    let model_name = "gemini-2.5-flash";
 
     let peom = String::from("YSBtZW93IGhlcmUgYSBtZW93IHRoZXJlIGEgbWVvdyAuLi4=");
 
