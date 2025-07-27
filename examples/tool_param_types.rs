@@ -46,7 +46,7 @@ use gemini_client_rs::{
         ParameterPropertyArray, ParameterPropertyBoolean, ParameterPropertyInteger,
         ParameterPropertyString, Role, Tool, ToolConfig, ToolConfigFunctionDeclaration,
     },
-    GeminiClient,
+    FunctionHandler, GeminiClient,
 };
 
 use dotenvy::dotenv;
@@ -333,14 +333,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::env::var("GEMINI_MODEL_NAME").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
 
         // Set up function handler
-        let mut function_handlers: HashMap<
-            String,
-            Box<dyn Fn(&mut serde_json::Value) -> Result<serde_json::Value, String> + Send + Sync>,
-        > = HashMap::new();
+        let mut function_handlers: HashMap<String, FunctionHandler> = HashMap::new();
 
         function_handlers.insert(
             "schedule_meeting".to_string(),
-            Box::new(|args: &mut serde_json::Value| {
+            FunctionHandler::Sync(Box::new(|args: &mut serde_json::Value| {
                 // Deserialize the arguments using the MeetingRequest struct
                 let meeting_request: MeetingRequest = serde_json::from_value(args.clone())
                     .map_err(|e| format!("Failed to deserialize meeting request: {}", e))?;
@@ -375,7 +372,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // Serialize the response back to JSON
                 serde_json::to_value(response)
                     .map_err(|e| format!("Failed to serialize meeting response: {}", e))
-            }),
+            })),
         );
 
         // Make the request

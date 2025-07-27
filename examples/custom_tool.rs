@@ -56,14 +56,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     function_handlers.insert(
         "get_current_weather".to_string(),
-        Box::new(|args: &mut serde_json::Value| {
-            if let Some(_location) = args.get("location").and_then(|v| v.as_str()) {
-                // This is a dummy implementation, would normally call an external API, etc.
-                Ok(serde_json::json!({ "temperature": 15, "condition": "Cloudy" }))
-            } else {
-                Err("Missing 'location' argument".to_string())
-            }
-        }),
+        FunctionHandler::Sync(Box::new(|args: &mut serde_json::Value| {
+            let location = args
+                .get("location")
+                .and_then(|v| v.as_str())
+                .unwrap_or("London, UK");
+            let weather_info = format!(
+                "The current weather in {} is sunny with a temperature of 20°C.",
+                location
+            );
+            Ok(serde_json::json!({
+                "weather": weather_info
+            }))
+        })),
     );
 
     let response = client
