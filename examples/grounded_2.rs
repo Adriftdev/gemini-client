@@ -35,11 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ]
     });
 
-    println!("Request JSON: {}", req_json);
-
     let request = serde_json::from_value::<GenerateContentRequest>(req_json)?;
-
-    println!("Request: {:?}", request);
     let response = client
         .generate_content_with_function_calling(model_name, request, &HashMap::new())
         .await?;
