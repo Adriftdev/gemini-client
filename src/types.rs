@@ -532,12 +532,7 @@ pub enum FinishReason {
     MalformedFunctionCall,
     /// Token generation stopped because generated images contain safety
     /// violations.
-    ImageSafety,
-
-    /// The model generated a function call. This is used in the context of
-    /// function calling. To Support Agentic Function Calling, the model
-    /// generated a function call that was not executed.
-    ToolExecution,
+    ImageSafety
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
