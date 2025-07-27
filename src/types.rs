@@ -547,9 +547,60 @@ pub struct ContentPart {
 }
 
 impl ContentPart {
-    pub fn new_text(text: &str) -> Self {
+    pub fn new_text(text: &str, thought: bool) -> Self {
         Self {
             data: ContentData::Text(text.to_string()),
+            thought,
+            metadata: None,
+        }
+    }
+
+    pub fn new_inline_data(mime_type: &str, data: &str, thought: bool) -> Self {
+        Self {
+            data: ContentData::InlineData(InlineData {
+                mime_type: mime_type.to_string(),
+                data: data.to_string(),
+            }),
+            thought,
+            metadata: None,
+        }
+    }
+
+    pub fn new_file_data(mime_type: &str, file_uri: &str) -> Self {
+        Self {
+            data: ContentData::FileData(FileData {
+                mime_type: mime_type.to_string(),
+                file_uri: file_uri.to_string(),
+            }),
+            thought: false,
+            metadata: None,
+        }
+    }
+
+    pub fn new_function_call(name: &str, arguments: Value, thought: bool) -> Self {
+        Self {
+            data: ContentData::FunctionCall(FunctionCall {
+                name: name.to_string(),
+                arguments,
+            }),
+            thought,
+            metadata: None,
+        }
+    }
+
+    pub fn new_executable_code(code: &str) -> Self {
+        Self {
+            data: ContentData::ExecutableCode(ExecutableCode {
+                code: code.to_string(),
+            }),
+            thought: false,
+            metadata: None,
+        }
+    }
+
+    pub fn new_code_execution_result(content: Value) -> Self {
+        Self {
+            data: ContentData::CodeExecutionResult(content),
             thought: false,
             metadata: None,
         }
