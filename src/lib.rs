@@ -6,7 +6,7 @@ use reqwest_eventsource::{Event, RequestBuilderExt as _};
 use serde_json::Value;
 use types::{
     Content, ContentData, FunctionResponse, FunctionResponsePayload, GenerateContentRequest,
-    GenerateContentResponse, Role,
+    GenerateContentResponse,
 };
 pub mod types;
 
@@ -14,16 +14,15 @@ use anyhow::Result;
 use std::future::Future;
 use std::pin::Pin; // Using anyhow for cleaner error handling in examples
 
+type SyncFunctionHandler = Box<dyn Fn(&mut Value) -> Result<Value, String> + Send + Sync>;
+type AsyncFunctionHandler = Box<
+    dyn Fn(&mut Value) -> Pin<Box<dyn Future<Output = Result<Value, String>> + Send>> + Send + Sync,
+>;
+
 // The new enum to hold either a sync or async handler
 pub enum FunctionHandler {
-    Sync(Box<dyn Fn(&mut Value) -> Result<Value, String> + Send + Sync>),
-    Async(
-        Box<
-            dyn Fn(&mut Value) -> Pin<Box<dyn Future<Output = Result<Value, String>> + Send>>
-                + Send
-                + Sync,
-        >,
-    ),
+    Sync(SyncFunctionHandler),
+    Async(AsyncFunctionHandler),
 }
 
 impl FunctionHandler {
@@ -266,7 +265,7 @@ impl GeminiClient {
                                     response: FunctionResponsePayload { content: result },
                                 })
                                 .into()],
-                                role: Role::Tool,
+                                role: None,
                             });
                         }
                         Err(e) => return Err(GeminiError::FunctionExecution(e)),

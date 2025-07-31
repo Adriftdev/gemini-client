@@ -61,10 +61,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .get("location")
                 .and_then(|v| v.as_str())
                 .unwrap_or("London, UK");
-            let weather_info = format!(
-                "The current weather in {} is sunny with a temperature of 20°C.",
-                location
-            );
+            let weather_info =
+                format!("The current weather in {location} is sunny with a temperature of 20°C.");
             Ok(serde_json::json!({
                 "weather": weather_info
             }))
@@ -89,7 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ContentData::FileData(_) => "File data found",
     };
 
-    println!("{}", weather);
+    println!("{weather}");
 
     Ok(())
 }
