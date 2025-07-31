@@ -51,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for candidate in &response.candidates {
         for part in &candidate.content.parts {
             match &part.data {
-                ContentData::Text(text) => println!("Response: {}", text),
+                ContentData::Text(text) => println!("Response: {text}"),
                 _ => println!("Unexpected response type"),
             }
         }

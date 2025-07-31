@@ -77,8 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let current_date = "2025-06-19";
     let system_message = format!(
-        "You are a helpful assistant. Today's date is {}. When scheduling meetings, use appropriate dates relative to today.",
-        current_date
+        "You are a helpful assistant. Today's date is {current_date}. When scheduling meetings, use appropriate dates relative to today."
     );
 
     let properties = HashMap::from([
@@ -208,7 +207,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 thought: false,
                 metadata: None,
             }],
-            role: Role::User,
+            role: Some(Role::User),
         }),
         contents: vec![Content {
             parts: vec![ContentPart{
@@ -216,7 +215,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 metadata: None,
                 thought: false
             }],
-            role: Role::User,
+            role: Some(Role::User),
         }],
         tools: vec![
             Tool::FunctionDeclaration(
@@ -317,8 +316,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     assert_eq!(
         serialized_str, expected_str,
-        "Schema mismatch!\nSerialized: {}\nExpected: {}",
-        serialized_str, expected_str
+        "Schema mismatch!\nSerialized: {serialized_str}\nExpected: {expected_str}"
     );
 
     println!("\n✅ Schema verification passed!");
@@ -340,7 +338,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             FunctionHandler::Sync(Box::new(|args: &mut serde_json::Value| {
                 // Deserialize the arguments using the MeetingRequest struct
                 let meeting_request: MeetingRequest = serde_json::from_value(args.clone())
-                    .map_err(|e| format!("Failed to deserialize meeting request: {}", e))?;
+                    .map_err(|e| format!("Failed to deserialize meeting request: {e}"))?;
 
                 // Print the meeting schedule details
                 println!("📅 Meeting Details:");
@@ -371,7 +369,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 // Serialize the response back to JSON
                 serde_json::to_value(response)
-                    .map_err(|e| format!("Failed to serialize meeting response: {}", e))
+                    .map_err(|e| format!("Failed to serialize meeting response: {e}"))
             })),
         );
 
@@ -400,10 +398,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
 
                 println!("🤖 Model Response:");
-                println!("{}", result);
+                println!("{result}");
             }
             Err(e) => {
-                println!("❌ API call failed: {}", e);
+                println!("❌ API call failed: {e}");
             }
         }
     } else {
