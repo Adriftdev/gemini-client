@@ -7,9 +7,7 @@ use serde_json::Value;
 #[serde(rename_all = "snake_case")]
 pub enum Role {
     User,
-    System,
     Model,
-    Tool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -45,7 +43,6 @@ pub enum Tool {
     },
 
     UrlContext {
-        #[serde(rename = "url_context")]
         url_context: serde_json::Value,
     },
 
@@ -103,7 +100,9 @@ pub enum FunctionCallingMode {
 #[serde(rename_all = "camelCase")]
 pub struct Content {
     pub parts: Vec<ContentPart>,
-    pub role: Role,
+    // Optional. The producer of the content. Must be either 'user' or 'model'.
+    // Useful to set for multi-turn conversations, otherwise can be left blank or unset.
+    pub role: Option<Role>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
