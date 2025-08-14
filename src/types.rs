@@ -7,9 +7,7 @@ use serde_json::Value;
 #[serde(rename_all = "snake_case")]
 pub enum Role {
     User,
-    System,
     Model,
-    Tool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -45,7 +43,6 @@ pub enum Tool {
     },
 
     UrlContext {
-        #[serde(rename = "url_context")]
         url_context: serde_json::Value,
     },
 
@@ -103,7 +100,9 @@ pub enum FunctionCallingMode {
 #[serde(rename_all = "camelCase")]
 pub struct Content {
     pub parts: Vec<ContentPart>,
-    pub role: Role,
+    // Optional. The producer of the content. Must be either 'user' or 'model'.
+    // Useful to set for multi-turn conversations, otherwise can be left blank or unset.
+    pub role: Option<Role>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -265,11 +264,17 @@ pub enum PromptFeedback {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageMetadata {
-    prompt_token_count: u32,
-    total_token_count: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    prompt_token_count: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    total_token_count: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     candidates_token_count: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     cached_content_token_count: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     tool_use_prompt_token_count: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     thoughts_token_count: Option<u32>,
     #[serde(default)]
     prompt_tokens_details: Vec<ModalityTokenCount>,
