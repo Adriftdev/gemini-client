@@ -13,6 +13,7 @@ use std::collections::HashMap;
 /// - time: string (time format)
 /// - topic: string (meeting subject)
 /// - priority: integer (priority level from 1 to 10)
+/// - room_temperature: number (room temperature in Celsius)
 /// - category: string (meeting category: personal, work, or family)
 /// - is_public: boolean (whether others can see meeting details, defaults to true)
 ///
@@ -44,7 +45,8 @@ use gemini_client_rs::{
         Content, ContentData, ContentPart, FunctionCallingConfig, FunctionDeclaration,
         FunctionParameters, GenerateContentRequest, GenerationConfig, ParameterProperty,
         ParameterPropertyArray, ParameterPropertyBoolean, ParameterPropertyInteger,
-        ParameterPropertyString, Role, Tool, ToolConfig, ToolConfigFunctionDeclaration,
+        ParameterPropertyNumber, ParameterPropertyString, Role, Tool, ToolConfig,
+        ToolConfigFunctionDeclaration,
     },
     FunctionHandler, GeminiClient,
 };
@@ -60,6 +62,7 @@ struct MeetingRequest {
     time: String,
     topic: String,
     priority: i64,
+    room_temperature: f64,
     category: String,
     is_public: bool,
 }
@@ -121,6 +124,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "priority".to_string(),
             ParameterProperty::Integer(ParameterPropertyInteger {
                 description: Some("Priority level of the meeting from 1 to 10".to_string()),
+            }),
+        ),
+        // room_temperature: number
+        (
+            "room_temperature".to_string(),
+            ParameterProperty::Number(ParameterPropertyNumber {
+                description: Some("Room temperature in Celsius".to_string()),
             }),
         ),
         // category: string with enum values
@@ -185,6 +195,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "time".to_string(),
                 "topic".to_string(),
                 "priority".to_string(),
+                "room_temperature".to_string(),
                 "category".to_string(),
                 "is_public".to_string(),
             ]),
@@ -211,7 +222,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
         contents: vec![Content {
             parts: vec![ContentPart{
-                data: ContentData::Text( "Please schedule a team meeting for tomorrow at 2 PM with John, Sarah, and Mike to discuss the quarterly review. tag it as work, it's a P5, and make it public".to_string()),
+                data: ContentData::Text("Please schedule a team meeting for tomorrow at 2 PM with John, Sarah, and Mike to discuss the quarterly review. tag it as work, it's a P5, room should be at 20.5 degrees Celsius, make it public".to_string()),
                 metadata: None,
                 thought: false
             }],
@@ -265,6 +276,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "type": "integer",
                     "description": "Priority level of the meeting from 1 to 10",
                 },
+                "room_temperature": {
+                    "type": "number",
+                    "description": "Room temperature in Celsius",
+                },
                 "category": {
                     "type": "string",
                     "description": "Category of the meeting",
@@ -275,7 +290,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "description": "Whether others can see meeting details (defaults to true)",
                 },
             },
-            "required": ["attendees", "date", "time", "topic", "priority", "category", "is_public"],
+            "required": ["attendees", "date", "time", "topic", "priority", "room_temperature", "category", "is_public"],
         },
         "response": {
             "properties": {
@@ -347,6 +362,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("  Time: {}", meeting_request.time);
                 println!("  Attendees: {}", meeting_request.attendees.join(", "));
                 println!("  Priority: {}", meeting_request.priority);
+                println!("  Room Temperature: {}", meeting_request.room_temperature);
                 println!("  Category: {}", meeting_request.category);
                 println!("  Public: {}", meeting_request.is_public);
 
