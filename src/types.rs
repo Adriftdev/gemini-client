@@ -187,6 +187,7 @@ pub struct FunctionParameters {
 pub enum ParameterProperty {
     String(ParameterPropertyString),
     Integer(ParameterPropertyInteger),
+    Number(ParameterPropertyNumber),
     Boolean(ParameterPropertyBoolean),
     Array(ParameterPropertyArray),
 }
@@ -208,6 +209,12 @@ pub struct ParameterPropertyString {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ParameterPropertyInteger {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ParameterPropertyNumber {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
