@@ -255,12 +255,14 @@ impl GeminiClient {
                 return Ok(response);
             };
 
-            let Some(part) = candidate.content.parts.first() else {
+            let Some(part) = candidate.content.as_ref().and_then(|c| c.parts.first()) else {
                 return Ok(response);
             };
 
             if let ContentData::FunctionCall(function_call) = &part.data {
-                request.contents.push(candidate.content.clone());
+                if let Some(content) = candidate.content.clone() {
+                    request.contents.push(content);
+                }
 
                 if let Some(handler) = function_handlers.get(&function_call.name) {
                     let mut args = function_call.arguments.clone();

@@ -245,8 +245,10 @@ pub struct GenerateContentResponse {
     pub candidates: Vec<Candidate>,
     pub prompt_feedback: Option<PromptFeedback>,
     pub usage_metadata: UsageMetadata,
-    pub model_version: String,
-    pub response_id: String,
+    #[serde(default)]
+    pub model_version: Option<String>,
+    #[serde(default)]
+    pub response_id: Option<String>,
 }
 
 /// Specifies the reason why the prompt was blocked.
@@ -372,7 +374,14 @@ pub enum ThinkingLevel {
 #[serde(rename_all = "camelCase")]
 pub struct Candidate {
     /// Generated content returned from the model.
-    pub content: Content,
+    ///
+    /// This field is not always populated, e.g.:
+    ///
+    /// ```json
+    /// {"candidates": [{"finishReason": "UNEXPECTED_TOOL_CALL","index": 0}]}
+    /// ```
+    #[serde(default)]
+    pub content: Option<Content>,
     /// The reason why the model stopped generating tokens. If empty, the model
     /// has not stopped generating tokens.
     pub finish_reason: Option<FinishReason>,
@@ -717,6 +726,8 @@ pub enum FinishReason {
     /// Token generation stopped because generated images contain safety
     /// violations.
     ImageSafety,
+    /// Model generated a tool call but no tools were enabled in the request.
+    UnexpectedToolCall,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
