@@ -115,6 +115,11 @@ pub struct GenerationConfig {
     pub response_mime_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response_schema: Option<serde_json::Value>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        rename = "_responseJsonSchema"
+    )]
+    pub response_json_schema: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub response_modalities: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
