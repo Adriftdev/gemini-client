@@ -368,10 +368,14 @@ pub enum ThinkingLevel {
     /// Unspecified thinking level.
     #[default]
     ThinkingLevelUnspecified,
-    /// High thinking level.
-    High,
+    /// Minimal thinking level.
+    Minimal,
     /// Low thinking level.
     Low,
+    /// Medium thinking level.
+    Medium,
+    /// High thinking level.
+    High,
 }
 
 /// A response candidate generated from the model.
