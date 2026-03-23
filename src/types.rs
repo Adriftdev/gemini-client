@@ -99,6 +99,7 @@ pub enum FunctionCallingMode {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Content {
+    #[serde(default)]
     pub parts: Vec<ContentPart>,
     // Optional. The producer of the content. Must be either 'user' or 'model'.
     // Useful to set for multi-turn conversations, otherwise can be left blank or unset.
@@ -114,6 +115,11 @@ pub struct GenerationConfig {
     pub response_mime_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response_schema: Option<serde_json::Value>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        rename = "_responseJsonSchema"
+    )]
+    pub response_json_schema: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub response_modalities: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -171,6 +177,7 @@ pub struct FunctionDeclaration {
     pub name: String,
     pub description: String,
     pub parameters: Option<FunctionParameters>,
+    pub parameters_json_schema: Option<serde_json::Value>,
     pub response: Option<FunctionParameters>,
 }
 
@@ -243,8 +250,10 @@ pub struct GenerateContentResponse {
     pub candidates: Vec<Candidate>,
     pub prompt_feedback: Option<PromptFeedback>,
     pub usage_metadata: UsageMetadata,
-    pub model_version: String,
-    pub response_id: String,
+    #[serde(default)]
+    pub model_version: Option<String>,
+    #[serde(default)]
+    pub response_id: Option<String>,
 }
 
 /// Specifies the reason why the prompt was blocked.
@@ -344,6 +353,29 @@ pub struct ThinkingConfig {
     pub include_thoughts: bool,
     /// The number of thoughts tokens that the model should generate.
     pub thinking_budget: Option<u32>,
+    /// Controls the maximum depth of the model's internal reasoning process
+    /// before it produces a response. If not specified, the default is HIGH.
+    /// Recommended for Gemini 3 or later models. Use with earlier models
+    /// results in an error.
+    pub thinking_level: Option<ThinkingLevel>,
+}
+
+/// Allow user to specify how much to think using enum instead of integer
+/// budget.
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Default, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ThinkingLevel {
+    /// Unspecified thinking level.
+    #[default]
+    ThinkingLevelUnspecified,
+    /// Minimal thinking level.
+    Minimal,
+    /// Low thinking level.
+    Low,
+    /// Medium thinking level.
+    Medium,
+    /// High thinking level.
+    High,
 }
 
 /// A response candidate generated from the model.
@@ -351,7 +383,14 @@ pub struct ThinkingConfig {
 #[serde(rename_all = "camelCase")]
 pub struct Candidate {
     /// Generated content returned from the model.
-    pub content: Content,
+    ///
+    /// This field is not always populated, e.g.:
+    ///
+    /// ```json
+    /// {"candidates": [{"finishReason": "UNEXPECTED_TOOL_CALL","index": 0}]}
+    /// ```
+    #[serde(default)]
+    pub content: Option<Content>,
     /// The reason why the model stopped generating tokens. If empty, the model
     /// has not stopped generating tokens.
     pub finish_reason: Option<FinishReason>,
@@ -696,6 +735,8 @@ pub enum FinishReason {
     /// Token generation stopped because generated images contain safety
     /// violations.
     ImageSafety,
+    /// Model generated a tool call but no tools were enabled in the request.
+    UnexpectedToolCall,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -707,6 +748,8 @@ pub struct ContentPart {
     pub data: ContentData,
     #[serde(skip_serializing)]
     pub metadata: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thought_signature: Option<String>,
 }
 
 impl ContentPart {
@@ -715,6 +758,7 @@ impl ContentPart {
             data: ContentData::Text(text.to_string()),
             thought,
             metadata: None,
+            thought_signature: None,
         }
     }
 
@@ -726,6 +770,7 @@ impl ContentPart {
             }),
             thought,
             metadata: None,
+            thought_signature: None,
         }
     }
 
@@ -737,17 +782,25 @@ impl ContentPart {
             }),
             thought: false,
             metadata: None,
+            thought_signature: None,
         }
     }
 
-    pub fn new_function_call(name: &str, arguments: Value, thought: bool) -> Self {
+    pub fn new_function_call(
+        id: Option<&str>,
+        name: &str,
+        arguments: Value,
+        thought: bool,
+    ) -> Self {
         Self {
             data: ContentData::FunctionCall(FunctionCall {
+                id: id.map(|s| s.to_string()),
                 name: name.to_string(),
                 arguments,
             }),
             thought,
             metadata: None,
+            thought_signature: None,
         }
     }
 
@@ -758,6 +811,7 @@ impl ContentPart {
             }),
             thought: false,
             metadata: None,
+            thought_signature: None,
         }
     }
 
@@ -766,17 +820,20 @@ impl ContentPart {
             data: ContentData::CodeExecutionResult(content),
             thought: false,
             metadata: None,
+            thought_signature: None,
         }
     }
 
-    pub fn new_function_response(name: &str, content: Value) -> Self {
+    pub fn new_function_response(id: Option<&str>, name: &str, content: Value) -> Self {
         Self {
             data: ContentData::FunctionResponse(FunctionResponse {
+                id: id.map(|s| s.to_string()),
                 name: name.to_string(),
                 response: FunctionResponsePayload { content },
             }),
             thought: false,
             metadata: None,
+            thought_signature: None,
         }
     }
 }
@@ -791,6 +848,7 @@ impl From<ContentData> for ContentPart {
             data,
             thought: false,
             metadata: None,
+            thought_signature: None,
         }
     }
 }
@@ -810,14 +868,18 @@ pub enum ContentData {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct FunctionCall {
+    #[serde(default)]
+    pub id: Option<String>,
     pub name: String,
-    #[serde(rename = "args")]
+    #[serde(default, rename = "args")]
     pub arguments: serde_json::Value,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct FunctionResponse {
+    #[serde(default)]
+    pub id: Option<String>,
     pub name: String,
     pub response: FunctionResponsePayload,
 }

@@ -43,8 +43,12 @@ pub enum GeminiError {
     EventSource(#[from] reqwest_eventsource::Error),
     #[error("API Error: {0}")]
     Api(Value),
-    #[error("JSON Error: {0}")]
-    Json(#[from] serde_json::Error),
+    #[error("JSON Error: {error} (payload: {data})")]
+    Json {
+        data: String,
+        #[source]
+        error: serde_json::Error,
+    },
     #[error("Function execution error: {0}")]
     FunctionExecution(String),
 }
@@ -210,7 +214,10 @@ impl GeminiClient {
                         Event::Open => (),
                         Event::Message(event) => yield
                             serde_json::from_str::<types::GenerateContentResponse>(&event.data)
-                                .map_err(Into::into),
+                                .map_err(|error| GeminiError::Json {
+                                    data: event.data,
+                                    error,
+                                }),
                     },
                     Err(e) => match e {
                         reqwest_eventsource::Error::StreamEnded => stream.close(),
@@ -248,12 +255,14 @@ impl GeminiClient {
                 return Ok(response);
             };
 
-            let Some(part) = candidate.content.parts.first() else {
+            let Some(part) = candidate.content.as_ref().and_then(|c| c.parts.first()) else {
                 return Ok(response);
             };
 
             if let ContentData::FunctionCall(function_call) = &part.data {
-                request.contents.push(candidate.content.clone());
+                if let Some(content) = candidate.content.clone() {
+                    request.contents.push(content);
+                }
 
                 if let Some(handler) = function_handlers.get(&function_call.name) {
                     let mut args = function_call.arguments.clone();
@@ -261,6 +270,7 @@ impl GeminiClient {
                         Ok(result) => {
                             request.contents.push(Content {
                                 parts: vec![ContentData::FunctionResponse(FunctionResponse {
+                                    id: function_call.id.clone(),
                                     name: function_call.name.clone(),
                                     response: FunctionResponsePayload { content: result },
                                 })
