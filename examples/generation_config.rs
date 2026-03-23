@@ -49,11 +49,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let response = client.generate_content(model_name, &request).await?;
 
     for candidate in &response.candidates {
-        for part in &candidate.content.parts {
-            match &part.data {
-                ContentData::Text(text) => println!("Response: {text}"),
-                _ => println!("Unexpected response type"),
+        if let Some(content_data) = &candidate.content {
+            for part in &content_data.parts {
+                match &part.data {
+                    ContentData::Text(text) => {
+                        println!("Text: {}", text);
+                    }
+                    _ => {
+                        println!("Unsupported content data type");
+                    }
+                }
             }
+        } else {
+            println!("No content data");
         }
     }
 

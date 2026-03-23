@@ -186,6 +186,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         name: "schedule_meeting".to_string(),
         description: "Schedules a meeting with specified attendees at a given time and date."
             .to_string(),
+        parameters_json_schema: None, // We will use the structured parameters instead of raw JSON
+        // schema
         parameters: Some(FunctionParameters {
             parameter_type: "object".to_string(),
             properties,
@@ -217,6 +219,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 data: ContentData::Text(system_message),
                 thought: false,
                 metadata: None,
+                thought_signature: None,
             }],
             role: Some(Role::User),
         }),
@@ -224,7 +227,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             parts: vec![ContentPart{
                 data: ContentData::Text("Please schedule a team meeting for tomorrow at 2 PM with John, Sarah, and Mike to discuss the quarterly review. tag it as work, it's a P5, room should be at 20.5 degrees Celsius, make it public".to_string()),
                 metadata: None,
-                thought: false
+                thought: false,
+                thought_signature: None,
+
             }],
             role: Some(Role::User),
         }],
@@ -397,18 +402,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(response) => {
                 let candidates = response.candidates.iter().collect::<Vec<_>>();
                 let first_candidate = candidates.first().unwrap();
-                let first_part = first_candidate.content.parts.first().unwrap();
+                let first_part = first_candidate.content.clone().unwrap();
 
-                let result = match first_part {
+                let result = match first_part.parts.first().unwrap() {
                     ContentPart {
                         data: ContentData::Text(text),
                         thought: false,
                         metadata: None,
+                        thought_signature: None,
                     } => text.clone(),
                     ContentPart {
                         data: ContentData::FunctionResponse(result),
                         thought: false,
                         metadata: None,
+                        thought_signature: None,
                     } => result.response.content.to_string(),
                     _ => "No valid response found".to_string(),
                 };

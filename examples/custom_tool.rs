@@ -75,19 +75,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let first_candidate = response.candidates.first().unwrap();
 
-    let first_part = first_candidate.content.parts.first().unwrap();
-
-    let weather = match &first_part.data {
-        ContentData::Text(text) => text,
-        ContentData::FunctionCall(_) => "Function call found",
-        ContentData::FunctionResponse(_) => "Function response found",
-        ContentData::ExecutableCode(_) => "Executable code found",
-        ContentData::CodeExecutionResult(_) => "Code execution result found",
-        ContentData::InlineData(_) => "Inline data found",
-        ContentData::FileData(_) => "File data found",
-    };
-
-    println!("{weather}");
+    if let Some(content_data) = &first_candidate.content {
+        for part in &content_data.parts {
+            match &part.data {
+                ContentData::Text(text) => {
+                    println!("Text: {}", text);
+                }
+                _ => {
+                    println!("Unsupported content data type");
+                }
+            }
+        }
+    } else {
+        println!("No content data");
+    }
 
     Ok(())
 }

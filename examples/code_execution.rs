@@ -41,11 +41,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     for candidate in &response.candidates {
-        for part in &candidate.content.parts {
-            match &part.data {
-                ContentData::Text(text) => println!("{text}"),
-                _ => { /* Ignore other part types as we are not using tools */ }
+        if let Some(content_data) = &candidate.content {
+            for part in &content_data.parts {
+                match &part.data {
+                    ContentData::Text(text) => {
+                        println!("Text: {}", text);
+                    }
+                    _ => {
+                        println!("Unsupported content data type");
+                    }
+                }
             }
+        } else {
+            println!("No content data");
         }
     }
 
