@@ -87,7 +87,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             metadata: None,
         }],
     };
-    let workflow = SupervisorWorkflow::new(&client, SupervisorConfig::default());
+    let config = SupervisorConfig {
+        max_assignments: 3,
+        ..Default::default()
+    };
+    let workflow = SupervisorWorkflow::new(&client, config);
 
     let outcome = workflow
         .run(
