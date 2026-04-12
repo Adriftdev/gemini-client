@@ -207,3 +207,8 @@ cargo check --examples
 cargo check --features tracing --examples
 ```
 
+## Related Projects
+
+- **[ollama-client-rs](https://github.com/Adriftdev/ollama_client)** — A sibling Rust client for [Ollama](https://ollama.ai) local models, sharing the same agentic architecture (tool runtime, RAG, planning, multi-agent). Both libraries are designed to converge into a unified ecosystem.
+
+
