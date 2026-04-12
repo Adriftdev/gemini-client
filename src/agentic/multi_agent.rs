@@ -273,7 +273,7 @@ where
         tools: Option<&AgentTools>,
     ) -> Result<Vec<Assignment>, OrchestrationError> {
         let prompt = format!(
-            "Create a JSON assignment list for the task.\nReturn at most {} assignments.\nEach assignment must contain agent_role, task, success_criteria, allowed_tools, and needs_rag.\nUse only these tool names when needed: {:?}.\nDefault the agent role to \"worker\" unless there is a strong reason to use another role.\nTask: {}",
+            "Create a JSON assignment list for the task.\nReturn at most {} assignments.\nEach assignment must contain agent_role, task, success_criteria, allowed_tools, and needs_rag.\nUse only these tool names when needed: {:?}.\nDefault the agent role to \"worker\" unless there is a strong reason to use another role.\nImportant: An assignment cannot use both RAG and tools simultaneously. If the task needs both, break it into separate assignments.\nTask: {}",
             self.config.max_assignments,
             tools
                 .map(|available| available.available_tool_names())

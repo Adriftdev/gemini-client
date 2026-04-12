@@ -69,6 +69,7 @@ fn build_tools() -> AgentTools {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
+    tracing_subscriber::fmt::init();
 
     let api_key = std::env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY must be set");
     let model_name =

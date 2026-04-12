@@ -108,9 +108,9 @@ pub struct PlanOutcome {
 #[derive(Debug, thiserror::Error)]
 pub enum PlanningError {
     #[error(transparent)]
-    Backend(#[from] GeminiError),
+    Backend(Box<GeminiError>),
     #[error(transparent)]
-    Rag(#[from] RagError),
+    Rag(Box<RagError>),
     #[error("The planner returned no steps")]
     EmptyPlan,
     #[error("The planner returned {count} steps, which exceeds the limit of {max}")]
@@ -653,6 +653,18 @@ fn summarize(text: &str) -> String {
         summary.push_str("...");
     }
     summary
+}
+
+impl From<GeminiError> for PlanningError {
+    fn from(error: GeminiError) -> Self {
+        Self::Backend(Box::new(error))
+    }
+}
+
+impl From<RagError> for PlanningError {
+    fn from(error: RagError) -> Self {
+        Self::Rag(Box::new(error))
+    }
 }
 
 #[cfg(test)]

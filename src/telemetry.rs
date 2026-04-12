@@ -1,3 +1,4 @@
+#[cfg(feature = "tracing")]
 use crate::GeminiError;
 
 #[cfg(feature = "tracing")]

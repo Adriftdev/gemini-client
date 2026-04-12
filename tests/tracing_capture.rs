@@ -15,7 +15,10 @@ use gemini_client_rs::{
         multi_agent::{SupervisorConfig, SupervisorWorkflow},
         planning::{PlanningConfig, PlanningSession},
         rag::{RagConfig, RagError, RagQuery, RagSession, RetrievedChunk, Retriever},
-        tool_runtime::{execute_tool_loop, AgentTools, ModelBackend, ToolRegistry, ToolRegistryView, ToolRuntimeConfig, Toolbox},
+        tool_runtime::{
+            execute_tool_loop, ModelBackend, ToolRegistry, ToolRegistryView, ToolRuntimeConfig,
+            Toolbox,
+        },
     },
     types::{
         Content, ContentPart, FunctionDeclaration, FunctionParameters, GenerateContentRequest,
@@ -63,7 +66,10 @@ impl CaptureLayer {
     }
 
     fn push(&self, record: TraceRecord) {
-        self.records.lock().expect("trace records lock").push(record);
+        self.records
+            .lock()
+            .expect("trace records lock")
+            .push(record);
     }
 }
 
@@ -71,7 +77,12 @@ impl<S> Layer<S> for CaptureLayer
 where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
 {
-    fn on_new_span(&self, attrs: &tracing::span::Attributes<'_>, _id: &tracing::span::Id, _ctx: Context<'_, S>) {
+    fn on_new_span(
+        &self,
+        attrs: &tracing::span::Attributes<'_>,
+        _id: &tracing::span::Id,
+        _ctx: Context<'_, S>,
+    ) {
         let mut visitor = FieldVisitor::default();
         attrs.record(&mut visitor);
         self.push(TraceRecord {
@@ -101,19 +112,23 @@ struct FieldVisitor {
 
 impl tracing::field::Visit for FieldVisitor {
     fn record_i64(&mut self, field: &Field, value: i64) {
-        self.fields.insert(field.name().to_string(), value.to_string());
+        self.fields
+            .insert(field.name().to_string(), value.to_string());
     }
 
     fn record_u64(&mut self, field: &Field, value: u64) {
-        self.fields.insert(field.name().to_string(), value.to_string());
+        self.fields
+            .insert(field.name().to_string(), value.to_string());
     }
 
     fn record_bool(&mut self, field: &Field, value: bool) {
-        self.fields.insert(field.name().to_string(), value.to_string());
+        self.fields
+            .insert(field.name().to_string(), value.to_string());
     }
 
     fn record_str(&mut self, field: &Field, value: &str) {
-        self.fields.insert(field.name().to_string(), value.to_string());
+        self.fields
+            .insert(field.name().to_string(), value.to_string());
     }
 
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
@@ -122,8 +137,9 @@ impl tracing::field::Visit for FieldVisitor {
     }
 }
 
-type ScriptedResponse =
-    Box<dyn Fn(&GenerateContentRequest) -> Result<GenerateContentResponse, GeminiError> + Send + Sync>;
+type ScriptedResponse = Box<
+    dyn Fn(&GenerateContentRequest) -> Result<GenerateContentResponse, GeminiError> + Send + Sync,
+>;
 
 struct ScriptedBackend {
     responses: Mutex<VecDeque<ScriptedResponse>>,
@@ -309,7 +325,8 @@ fn low_level_client_emits_generate_and_stream_traces() {
             "usageMetadata": {}
         })
         .to_string();
-        let (api_url, handle) = spawn_http_server(vec![http_json_response("200 OK", &success_body)]);
+        let (api_url, handle) =
+            spawn_http_server(vec![http_json_response("200 OK", &success_body)]);
         let client = GeminiClient::new("test-key".to_string()).with_api_url(api_url);
         let response = client
             .generate_content("gemini-test", &request)
@@ -348,10 +365,9 @@ fn low_level_client_emits_generate_and_stream_traces() {
                 "usageMetadata": {}
             })
         );
-        let (api_url, handle) =
-            spawn_http_server(vec![http_sse_response(&success_stream_body)]);
+        let (api_url, handle) = spawn_http_server(vec![http_sse_response(&success_stream_body)]);
         let client = GeminiClient::new("test-key".to_string()).with_api_url(api_url);
-        let mut stream = client
+        let stream = client
             .stream_content("gemini-test", &request)
             .await
             .expect("stream should start");
@@ -364,10 +380,9 @@ fn low_level_client_emits_generate_and_stream_traces() {
         handle.join().expect("join server");
 
         let invalid_stream_body = "data: not-json\n\n".to_string();
-        let (api_url, handle) =
-            spawn_http_server(vec![http_sse_response(&invalid_stream_body)]);
+        let (api_url, handle) = spawn_http_server(vec![http_sse_response(&invalid_stream_body)]);
         let client = GeminiClient::new("test-key".to_string()).with_api_url(api_url);
-        let mut stream = client
+        let stream = client
             .stream_content("gemini-test", &request)
             .await
             .expect("stream should start");
@@ -597,7 +612,11 @@ fn planning_emits_pass_retry_and_replan_traces() {
                 ))
             }),
             Box::new(|_| Ok(response_with_text("step result"))),
-            Box::new(|_| Ok(response_with_text(r#"{"decision":"replan","feedback":"redo"}"#))),
+            Box::new(|_| {
+                Ok(response_with_text(
+                    r#"{"decision":"replan","feedback":"redo"}"#,
+                ))
+            }),
             Box::new(|_| {
                 Ok(response_with_text(
                     r#"{"steps":[{"id":"s2","title":"Retry","instruction":"Retry","success_criteria":"Retry","allowed_tools":[],"needs_rag":false}]}"#,
@@ -637,7 +656,11 @@ fn supervisor_emits_accept_revise_and_no_artifact_traces() {
                 ))
             }),
             Box::new(|_| Ok(response_with_text("artifact one"))),
-            Box::new(|_| Ok(response_with_text(r#"{"decision":"accept","feedback":"good"}"#))),
+            Box::new(|_| {
+                Ok(response_with_text(
+                    r#"{"decision":"accept","feedback":"good"}"#,
+                ))
+            }),
             Box::new(|_| Ok(response_with_text("final"))),
         ]);
         let workflow = SupervisorWorkflow::new(&backend, SupervisorConfig::default());
@@ -658,9 +681,17 @@ fn supervisor_emits_accept_revise_and_no_artifact_traces() {
                 ))
             }),
             Box::new(|_| Ok(response_with_text("artifact one"))),
-            Box::new(|_| Ok(response_with_text(r#"{"decision":"revise","feedback":"tighten"}"#))),
+            Box::new(|_| {
+                Ok(response_with_text(
+                    r#"{"decision":"revise","feedback":"tighten"}"#,
+                ))
+            }),
             Box::new(|_| Ok(response_with_text("artifact revised"))),
-            Box::new(|_| Ok(response_with_text(r#"{"decision":"accept","feedback":"good"}"#))),
+            Box::new(|_| {
+                Ok(response_with_text(
+                    r#"{"decision":"accept","feedback":"good"}"#,
+                ))
+            }),
             Box::new(|_| Ok(response_with_text("final"))),
         ]);
         let workflow = SupervisorWorkflow::new(&backend, SupervisorConfig::default());
@@ -681,9 +712,17 @@ fn supervisor_emits_accept_revise_and_no_artifact_traces() {
                 ))
             }),
             Box::new(|_| Ok(response_with_text("artifact one"))),
-            Box::new(|_| Ok(response_with_text(r#"{"decision":"revise","feedback":"tighten"}"#))),
+            Box::new(|_| {
+                Ok(response_with_text(
+                    r#"{"decision":"revise","feedback":"tighten"}"#,
+                ))
+            }),
             Box::new(|_| Ok(response_with_text("artifact revised"))),
-            Box::new(|_| Ok(response_with_text(r#"{"decision":"revise","feedback":"still bad"}"#))),
+            Box::new(|_| {
+                Ok(response_with_text(
+                    r#"{"decision":"revise","feedback":"still bad"}"#,
+                ))
+            }),
         ]);
         let workflow = SupervisorWorkflow::new(&backend, SupervisorConfig::default());
         let _ = workflow

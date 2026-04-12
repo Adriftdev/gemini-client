@@ -418,7 +418,8 @@ impl GeminiClient {
             Some(&tool_view),
             &agentic::tool_runtime::ToolRuntimeConfig::default(),
         )
-        .await {
+        .await
+        {
             Ok(result) => result,
             Err(error) => {
                 crate::telemetry::telemetry_error!(
