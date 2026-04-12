@@ -1,109 +1,67 @@
 # gemini-client-rs
 
-A Rust client for the Google Gemini API.
-
-This crate provides a convenient way to interact with the Google Gemini API, allowing you to generate text, leverage function calling, and utilize grounding capabilities.
+A Rust client for the Google Gemini API with a higher-level `agentic` layer for tool use, app-owned RAG, bounded planning, and deterministic supervisor workflows.
 
 ## Features
 
-*   **Text Generation:** Generate text content using various Gemini models.
-*   **Function Calling:** Define and call custom functions through the Gemini API.
-*   **Grounding (with Google Search):** Integrate Google Search to enhance responses with real-time information.
-*   **Easy-to-use API:** Provides a simple and intuitive interface for interacting with the Gemini API.
-*   **Error Handling:** Includes a comprehensive error type (`GeminiError`) for handling API and other issues.
+- Low-level Gemini API client via `GeminiClient`
+- Native Gemini tools and grounding support through `types::Tool`
+- Reusable tool runtime for function-calling loops
+- App-owned RAG with retriever traits and citation validation
+- Bounded plan/execute/evaluate orchestration
+- Deterministic supervisor/worker/reviewer/synthesizer workflow
 
-## Getting Started
-
-### Prerequisites
-
-*   A Google Cloud project with the Gemini API enabled.
-*   An API key for the Gemini API.
-
-### Installation
-
-Add the following to your `Cargo.toml` file:
+## Installation
 
 ```toml
 [dependencies]
-gemini-client-rs = "0.1.0" # Replace with the actual version
+gemini_client_rs = "0.7.0"
 tokio = { version = "1", features = ["full"] }
+dotenvy = "0.15"
+async-trait = "0.1"
+
+[dependencies.tracing-subscriber]
+version = "0.3"
+features = ["fmt"]
 ```
 
-### Setting up your API Key
+## API Key
 
-You need to obtain an API key from the Google Cloud console. You can then set the `GEMINI_API_KEY` environment variable or pass the key directly to the `GeminiClient::new()` constructor.
+Set `GEMINI_API_KEY` in your environment or a local `.env` file:
 
-**Using `.env` file (recommended for development):**
+```env
+GEMINI_API_KEY=YOUR_API_KEY
+```
 
-1. Create a `.env` file in the root of your project.
-2. Add your API key to the `.env` file:
-
-    ```env
-    GEMINI_API_KEY=YOUR_API_KEY
-    ```
-
-3. Load the `.env` file in your application:
-
-    ```rust
-    use dotenvy::dotenv;
-
-    #[tokio::main]
-    async fn main() -> Result<(), Box<dyn std::error::Error>> {
-        dotenv().ok();
-        // ... rest of your code
-    }
-    ```
-
-## Examples
-
-Here are some examples demonstrating how to use the `gemini-client-rs` crate.
-
-### Basic Text Generation
+## Low-Level Usage
 
 ```rust
+use dotenvy::dotenv;
 use gemini_client_rs::{
-    types::{Content, ContentPart, GenerateContentRequest, PartResponse, Role},
+    types::{ContentData, GenerateContentRequest},
     GeminiClient,
 };
-use serde_json::{json, Value};
-use dotenvy::dotenv;
+use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
-    let api_key = std::env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY must be set");
 
-    let client = GeminiClient::new(api_key);
-    let model_name = "gemini-1.5-flash"; // Or your desired model
+    let client = GeminiClient::new(std::env::var("GEMINI_API_KEY")?);
+    let request = serde_json::from_value::<GenerateContentRequest>(json!({
+        "contents": [{
+            "role": "user",
+            "parts": [{ "text": "Explain the purpose of a release checklist." }]
+        }]
+    }))?;
 
-    let mut history: Vec<Content> = vec![Content {
-        parts: vec![ContentPart::Text(outline_prompt.clone())],
-        role: Role::User,
-    }];
+    let response = client.generate_content("gemini-2.5-flash", &request).await?;
 
-    let req_json = json!(
-        {
-            "contents": history,
-        }
-    );
-
-    let request: GenerateContentRequest = serde_json::from_value(req_json).expect("Invalid JSON");
-
-
-    let response = client.generate_content(model_name, &request).await?;
-
-    if let Some(candidates) = response.candidates {
-        for candidate in &candidates {
-            for part in &candidate.content.parts {
-                match part {
-                    PartResponse::Text(text) => {
-                        println!("Response: {}", text.clone())
-                        history.push(Content {
-                            parts: vec![ContentPart::Text(text.clone())],
-                            role: Role::Model,
-                        });
-                    },
-                    _ => {}
+    for candidate in &response.candidates {
+        if let Some(content) = &candidate.content {
+            for part in &content.parts {
+                if let ContentData::Text(text) = &part.data {
+                    println!("{text}");
                 }
             }
         }
@@ -113,187 +71,138 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### Function Calling with a Custom Function
+## Function Calling
+
+The legacy `GeminiClient::generate_content_with_function_calling` API is still available. Internally it now delegates to the reusable `agentic::tool_runtime` loop, which:
+
+- reads candidate `0` only for deterministic orchestration,
+- processes all function-call parts in order,
+- appends one function response per executed call,
+- stops when the model stops requesting tools,
+- errors if the loop exceeds `max_round_trips`.
+
+For higher-level orchestration, construct `AgentTools` with both tool declarations and handlers:
 
 ```rust
 use std::collections::HashMap;
+
 use gemini_client_rs::{
+    agentic::tool_runtime::{AgentTools, ToolRegistry},
     types::{
-        Content, ContentPart, FunctionDeclaration, FunctionParameters, GenerateContentRequest,
-        ParameterProperty, PartResponse, Role, ToolConfig, ToolConfigFunctionDeclaration,
+        FunctionDeclaration, FunctionParameters, ParameterProperty, ParameterPropertyString, Tool,
+        ToolConfigFunctionDeclaration,
     },
-    GeminiClient,
+    FunctionHandler,
 };
-use dotenvy::dotenv;
+use serde_json::json;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    dotenv().ok();
-    let api_key = std::env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY must be set");
-
-    let client = GeminiClient::new(api_key);
-    let model_name = "gemini-2.0-flash-exp"; // Or your desired model
-
-    let get_current_weather_fn = FunctionDeclaration {
-        name: "get_current_weather".to_string(),
-        description: "Get the current weather in a given location".to_string(),
-        parameters: FunctionParameters {
-            parameter_type: "OBJECT".to_string(),
-            properties: {
-                let mut props = HashMap::new();
-                props.insert(
-                    "location".to_string(),
-                    ParameterProperty {
-                        property_type: "string".to_string(),
-                        description: "The city and state, e.g. 'San Francisco, CA'".to_string(),
-                        enum_values: None,
-                    },
-                );
-                props
-            },
-            required: Some(vec!["location".to_string()]),
-        },
-    };
-
-    let request = GenerateContentRequest {
-        contents: vec![Content {
-            parts: vec![ContentPart::Text(
-                "What's the current weather in London?".to_string(),
-            )],
-            role: Role::User,
-        }],
-        tools: Some(vec![ToolConfig::FunctionDeclaration(
-            ToolConfigFunctionDeclaration {
-                function_declarations: vec![get_current_weather_fn],
-            },
-        )]),
-    };
-
-    let mut function_handlers: HashMap<
-        String,
-        Box<dyn Fn(serde_json::Value) -> Result<serde_json::Value, String> + Send + Sync>,
-    > = HashMap::new();
-
-    function_handlers.insert(
-        "get_current_weather".to_string(),
-        Box::new(|args: serde_json::Value| {
-            if let Some(location) = args.get("location").and_then(|v| v.as_str()) {
-                println!("Fetching weather for: {}", location);
-                // In a real application, you would make an external API call here.
-                Ok(serde_json::json!({ "temperature": 10, "condition": "Rainy" }))
-            } else {
-                Err("Missing 'location' argument".to_string())
-            }
+let tool = Tool::FunctionDeclaration(ToolConfigFunctionDeclaration {
+    function_declarations: vec![FunctionDeclaration {
+        name: "lookup_status".to_string(),
+        description: "Looks up the status of a service".to_string(),
+        parameters: Some(FunctionParameters {
+            parameter_type: "object".to_string(),
+            properties: HashMap::from([(
+                "service".to_string(),
+                ParameterProperty::String(ParameterPropertyString {
+                    description: Some("Service name".to_string()),
+                    enum_values: None,
+                }),
+            )]),
+            required: Some(vec!["service".to_string()]),
         }),
-    );
+        parameters_json_schema: None,
+        response: None,
+    }],
+});
 
-    let response = client
-        .generate_content_with_function_calling(model_name, request, &function_handlers)
-        .await?;
+let mut handlers = ToolRegistry::new();
+handlers.insert(
+    "lookup_status".to_string(),
+    FunctionHandler::Sync(Box::new(|args| {
+        Ok(json!({ "status": format!("{} is healthy", args["service"]) }))
+    })),
+);
 
-    if let Some(candidates) = response.candidates {
-        if let Some(candidate) = candidates.first() {
-            if let Some(part) = candidate.content.parts.first() {
-                match part {
-                    PartResponse::Text(text) => println!("Response: {}", text),
-                    PartResponse::FunctionCall(fc) => println!("Function Call: {:?}", fc),
-                    PartResponse::FunctionResponse(fr) => println!("Function Response: {:?}", fr),
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
+let agent_tools = AgentTools::new(vec![tool], handlers);
 ```
 
-### Grounding with Google Search
+## Agentic Layer
+
+The `agentic` module adds three high-level patterns on top of the low-level client.
+
+### RAG
+
+- `rag::Retriever` lets your application own retrieval.
+- `rag::RagSession` retrieves chunks, builds deterministic context, asks Gemini for structured JSON, and validates citation ids.
+- Gemini-native search/grounding remains separate and complementary.
+
+See [examples/rag_local.rs](/Users/adrift/projects/gemini_client/examples/rag_local.rs).
+
+### Planning
+
+- `planning::PlanningSession` runs a bounded planner/executor/evaluator loop.
+- Step schema is fixed: `id`, `title`, `instruction`, `success_criteria`, `allowed_tools`, `needs_rag`.
+- Each run keeps in-memory working memory only.
+- Planner and evaluator turns force `candidate_count = 1` and `response_mime_type = application/json`.
+
+See [examples/plan_and_execute.rs](/Users/adrift/projects/gemini_client/examples/plan_and_execute.rs).
+
+### Multi-Agent
+
+- `multi_agent::SupervisorWorkflow` implements one deterministic topology only:
+  supervisor -> worker -> reviewer -> synthesizer
+- Work happens sequentially.
+- Reviewer-triggered revisions are capped at one rerun per artifact.
+- All coordination goes through an append-only `Blackboard`.
+
+See [examples/supervisor_workflow.rs](/Users/adrift/projects/gemini_client/examples/supervisor_workflow.rs).
+
+## Tracing
+
+Tracing support is available behind the optional `tracing` feature:
+
+```toml
+[dependencies]
+gemini_client_rs = { version = "0.7.0", features = ["tracing"] }
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
+```
+
+The library does not install a subscriber for you. Configure one in your application:
 
 ```rust
-use std::collections::HashMap;
-use gemini_client_rs::{
-    types::{
-        Content, ContentPart, DynamicRetrieval, DynamicRetrievalConfig, GenerateContentRequest,
-        PartResponse, Role, ToolConfig,
-    },
-    GeminiClient,
-};
-use dotenvy::dotenv;
+use tracing_subscriber::EnvFilter;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    dotenv().ok();
-    let api_key = std::env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY must be set");
-
-    let client = GeminiClient::new(api_key);
-    let model_name = "gemini-1.5-pro"; // Or your desired model
-
-    let request = GenerateContentRequest {
-        contents: vec![Content {
-            parts: vec![ContentPart::Text(
-                "What are the current trending news topics?".to_string(),
-            )],
-            role: Role::User,
-        }],
-        tools: Some(vec![ToolConfig::DynamicRetieval {
-            google_search_retrieval: DynamicRetrieval {
-                dynamic_retrieval_config: DynamicRetrievalConfig {
-                    mode: "MODE_DYNAMIC".to_string(),
-                    dynamic_threshold: 0.5,
-                },
-            },
-        }]),
-    };
-
-    let response = client
-        .generate_content_with_function_calling(model_name, request, &HashMap::new())
-        .await?;
-
-    if let Some(candidates) = response.candidates {
-        for candidate in &candidates {
-            for part in &candidate.content.parts {
-                match part {
-                    PartResponse::Text(text) => println!("Response: {}", text),
-                    _ => {}
-                }
-            }
-        }
-    }
-
-    Ok(())
+fn init_tracing() {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("gemini_client_rs=info")),
+        )
+        .try_init();
 }
 ```
 
-## Error Handling
+The emitted logs are lifecycle-only. They include model names, counts, retry/replan decisions, tool names, and error kinds, but they do not include prompts, model output bodies, tool arguments, or retrieved document contents.
 
-The crate defines a `GeminiError` enum to represent various errors that can occur during API calls or function execution. You can handle these errors using standard Rust error handling mechanisms:
+## Built-In Examples
 
-```rust
-use gemini_client_rs::{GeminiClient, types::GenerateContentRequest, GeminiError};
-
-async fn generate(client: &GeminiClient, request: &GenerateContentRequest) -> Result<(), GeminiError> {
-    let model_name = "gemini-1.5-flash";
-    match client.generate_content(model_name, request).await {
-        Ok(response) => {
-            println!("Response received: {:?}", response);
-            Ok(())
-        }
-        Err(e) => {
-            eprintln!("Error generating content: {}", e);
-            Err(e)
-        }
-    }
-}
+```bash
+cargo run --example basic
+cargo run --example custom_tool
+cargo run --example rag_local
+cargo run --example plan_and_execute
+cargo run --example supervisor_workflow
+cargo test --features tracing
 ```
 
-## Supported Models
+## Verification
 
-The examples use `gemini-1.5-flash`, `gemini-1.5-pro`, and `gemini-2.0-flash-exp`. Refer to the Google Gemini API documentation for the latest list of available models.
+The crate is verified with:
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit pull requests or open issues for bugs or feature requests.
-
-## License
-
-This project is licensed under the MIT License.
+```bash
+cargo test
+cargo test --features tracing
+cargo check --examples
+cargo check --features tracing --examples
+```

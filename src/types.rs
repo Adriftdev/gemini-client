@@ -176,8 +176,11 @@ pub struct DynamicRetrievalConfig {
 pub struct FunctionDeclaration {
     pub name: String,
     pub description: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub parameters: Option<FunctionParameters>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub parameters_json_schema: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub response: Option<FunctionParameters>,
 }
 
@@ -186,6 +189,7 @@ pub struct FunctionParameters {
     #[serde(rename = "type")]
     pub parameter_type: String,
     pub properties: HashMap<String, ParameterProperty>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub required: Option<Vec<String>>,
 }
 
@@ -930,4 +934,51 @@ pub struct Model {
     pub max_temperature: Option<f32>,
     pub top_p: Option<f32>,
     pub top_k: Option<f32>,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use serde_json::json;
+
+    use super::{
+        FunctionDeclaration, FunctionParameters, ParameterProperty, ParameterPropertyString,
+    };
+
+    #[test]
+    fn function_declaration_omits_null_schema_when_parameters_are_present() {
+        let declaration = FunctionDeclaration {
+            name: "lookup_status".to_string(),
+            description: "Looks up service status".to_string(),
+            parameters: Some(FunctionParameters {
+                parameter_type: "object".to_string(),
+                properties: HashMap::from([(
+                    "service".to_string(),
+                    ParameterProperty::String(ParameterPropertyString {
+                        description: Some("Service name".to_string()),
+                        enum_values: None,
+                    }),
+                )]),
+                required: Some(vec!["service".to_string()]),
+            }),
+            parameters_json_schema: None,
+            response: None,
+        };
+
+        let serialized = serde_json::to_value(&declaration).expect("declaration should serialize");
+        let object = serialized
+            .as_object()
+            .expect("function declaration should serialize to an object");
+
+        assert!(object.contains_key("parameters"));
+        assert!(!object.contains_key("parametersJsonSchema"));
+        assert!(!object.contains_key("response"));
+        assert_eq!(
+            object
+                .get("parameters")
+                .and_then(|value| value.get("required")),
+            Some(&json!(["service"]))
+        );
+    }
 }

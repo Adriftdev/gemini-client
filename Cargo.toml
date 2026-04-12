@@ -6,9 +6,14 @@ description = "A Rust client for Google Gemini API"
 license = "MIT"
 repository = "https://github.com/Adriftdev/gemini-client"
 
+[features]
+default = []
+tracing = ["dep:tracing"]
+
 [dependencies]
 anyhow = "1.0.98"
 async-stream = { version = "0.3", default-features = false }
+async-trait = { version = "0.1", default-features = false }
 futures-util = { version = "0.3", default-features = false }
 reqwest = { version = "0.12", default-features = false, features = [
   "json",
@@ -23,6 +28,11 @@ tokio = { version = "1", default-features = false, features = [
   "macros",
   "rt-multi-thread",
 ] }
+tracing = { version = "0.1", default-features = false, optional = true }
 
 [dev-dependencies]
 dotenvy = "0.15"
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+  "fmt",
+  "registry",
+] }
