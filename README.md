@@ -137,7 +137,7 @@ The `agentic` module adds three high-level patterns on top of the low-level clie
 - `rag::RagSession` retrieves chunks, builds deterministic context, asks Gemini for structured JSON, and validates citation ids.
 - Gemini-native search/grounding remains separate and complementary.
 
-See [examples/rag_local.rs](/Users/adrift/projects/gemini_client/examples/rag_local.rs).
+See [examples/rag_local.rs](examples/rag_local.rs).
 
 ### Planning
 
@@ -146,7 +146,7 @@ See [examples/rag_local.rs](/Users/adrift/projects/gemini_client/examples/rag_lo
 - Each run keeps in-memory working memory only.
 - Planner and evaluator turns force `candidate_count = 1` and `response_mime_type = application/json`.
 
-See [examples/plan_and_execute.rs](/Users/adrift/projects/gemini_client/examples/plan_and_execute.rs).
+See [examples/plan_and_execute.rs](examples/plan_and_execute.rs).
 
 ### Multi-Agent
 
@@ -156,7 +156,7 @@ See [examples/plan_and_execute.rs](/Users/adrift/projects/gemini_client/examples
 - Reviewer-triggered revisions are capped at one rerun per artifact.
 - All coordination goes through an append-only `Blackboard`.
 
-See [examples/supervisor_workflow.rs](/Users/adrift/projects/gemini_client/examples/supervisor_workflow.rs).
+See [examples/supervisor_workflow.rs](examples/supervisor_workflow.rs).
 
 ## Tracing
 
