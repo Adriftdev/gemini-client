@@ -194,7 +194,7 @@ where
             blackboard.push_assignment(assignment.clone());
 
             let mut artifact = self
-                .execute_assignment(model, task, assignment, tools, rag, 0)
+                .execute_assignment(model, task, assignment, tools, rag, 0, &blackboard)
                 .await?;
             blackboard.push_artifact(artifact.clone());
 
@@ -214,7 +214,7 @@ where
                     "supervisor assignment requested revision"
                 );
                 artifact = self
-                    .execute_assignment(model, task, assignment, tools, rag, 1)
+                    .execute_assignment(model, task, assignment, tools, rag, 1, &blackboard)
                     .await?;
                 artifact.content = format!(
                     "{}\n\nReviewer feedback addressed: {}",
@@ -353,6 +353,7 @@ where
         tools: Option<&AgentTools>,
         rag: Option<&R>,
         revision_count: usize,
+        blackboard: &Blackboard,
     ) -> Result<Artifact, OrchestrationError> {
         let worker_model = self.role_model("worker", model);
         crate::telemetry::telemetry_debug!(
@@ -376,8 +377,9 @@ where
                 .answer(
                     worker_model,
                     &format!(
-                        "Overall task: {overall_task}\nAssignment: {}\nSuccess criteria: {}",
-                        assignment.task, assignment.success_criteria
+                        "Overall task: {overall_task}\nAssignment: {}\nSuccess criteria: {}\nBlackboard: {}",
+                        assignment.task, assignment.success_criteria,
+                        serde_json::to_string_pretty(&blackboard.entries).unwrap_or_else(|_| "[]".to_string())
                     ),
                     Some(self.role_instruction("worker")),
                 )
@@ -418,8 +420,9 @@ where
                         self.role_instruction("worker"),
                     )),
                     contents: vec![build_user_content(&format!(
-                        "Overall task: {overall_task}\nAssignment: {}\nSuccess criteria: {}",
-                        assignment.task, assignment.success_criteria
+                        "Overall task: {overall_task}\nAssignment: {}\nSuccess criteria: {}\nBlackboard: {}",
+                        assignment.task, assignment.success_criteria,
+                        serde_json::to_string_pretty(&blackboard.entries).unwrap_or_else(|_| "[]".to_string())
                     ))],
                     tools: selection.tools().to_vec(),
                     tool_config: None,
@@ -456,8 +459,9 @@ where
         let request = crate::types::GenerateContentRequest {
             system_instruction: build_system_instruction(Some(self.role_instruction("worker"))),
             contents: vec![build_user_content(&format!(
-                "Overall task: {overall_task}\nAssignment: {}\nSuccess criteria: {}",
-                assignment.task, assignment.success_criteria
+                "Overall task: {overall_task}\nAssignment: {}\nSuccess criteria: {}\nBlackboard: {}",
+                assignment.task, assignment.success_criteria,
+                serde_json::to_string_pretty(&blackboard.entries).unwrap_or_else(|_| "[]".to_string())
             ))],
             tools: vec![],
             tool_config: None,
@@ -504,7 +508,7 @@ where
         let request = request_with_json_response(
             Some(self.role_instruction("reviewer")),
             format!(
-                "Review the worker artifact.\nReturn JSON with decision and feedback. Decision must be accept or revise.\nOverall task: {overall_task}\nAssignment: {}\nSuccess criteria: {}\nArtifact: {}\nBlackboard entries: {}",
+                "Review the worker artifact.\nReturn JSON with decision and feedback. Decision must be accept or revise.\nEvaluate ONLY if the artifact satisfies the Assignment and Success criteria. Do NOT expect the artifact to complete the Overall task by itself.\nOverall task: {overall_task}\nAssignment: {}\nSuccess criteria: {}\nArtifact: {}\nBlackboard entries: {}",
                 assignment.task,
                 assignment.success_criteria,
                 artifact.content,
