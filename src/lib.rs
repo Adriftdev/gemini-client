@@ -1,13 +1,10 @@
-use std::collections::HashMap;
-
 use futures_util::{Stream, StreamExt as _};
 use reqwest::Client;
 use reqwest_eventsource::{Event, RequestBuilderExt as _};
 use serde_json::Value;
-use types::{
-    Content, ContentData, FunctionResponse, FunctionResponsePayload, GenerateContentRequest,
-    GenerateContentResponse,
-};
+use types::{GenerateContentRequest, GenerateContentResponse};
+pub mod agentic;
+mod telemetry;
 pub mod types;
 
 use anyhow::Result;
@@ -51,6 +48,8 @@ pub enum GeminiError {
     },
     #[error("Function execution error: {0}")]
     FunctionExecution(String),
+    #[error("Tool loop exceeded the maximum number of round trips ({max_round_trips})")]
+    LoopLimitExceeded { max_round_trips: usize },
 }
 
 impl GeminiError {
@@ -131,27 +130,63 @@ impl GeminiClient {
             next_page_token: Option<String>,
         }
 
-        let url = format!("{}/models?key={}&pageSize=1000", self.api_url, self.api_key);
-
-        let response = self.http_client.get(&url).send().await?;
-        if !response.status().is_success() {
-            return Err(GeminiError::from_response(response, None).await);
-        }
+        let _span = crate::telemetry::telemetry_span_guard!(
+            info,
+            "gemini_client_rs.list_models",
+            has_api_key = !self.api_key.is_empty()
+        );
+        crate::telemetry::telemetry_info!("list_models started");
 
         let mut models = vec![];
         let mut next_page_token = None;
+        let mut page_fetch_count = 0usize;
         loop {
             let mut url = format!("{}/models?key={}&pageSize=1000", self.api_url, self.api_key);
-            if let Some(next_page_token) = next_page_token {
+            if let Some(ref next_page_token) = next_page_token {
                 url.push_str(&format!("&pageToken={next_page_token}"));
             }
 
-            let response = self.http_client.get(&url).send().await?;
+            page_fetch_count += 1;
+            crate::telemetry::telemetry_debug!(
+                page_fetch_count,
+                has_page_token = next_page_token.is_some(),
+                "list_models fetching page"
+            );
+
+            let response = match self.http_client.get(&url).send().await {
+                Ok(response) => response,
+                Err(error) => {
+                    let error = GeminiError::Http(error);
+                    crate::telemetry::telemetry_error!(
+                        error_kind = crate::telemetry::gemini_error_kind(&error),
+                        page_fetch_count,
+                        "list_models request failed"
+                    );
+                    return Err(error);
+                }
+            };
             if !response.status().is_success() {
-                return Err(GeminiError::from_response(response, None).await);
+                let error = GeminiError::from_response(response, None).await;
+                crate::telemetry::telemetry_error!(
+                    error_kind = crate::telemetry::gemini_error_kind(&error),
+                    page_fetch_count,
+                    "list_models API failure"
+                );
+                return Err(error);
             }
 
-            let response: Response = response.json().await?;
+            let response: Response = match response.json().await {
+                Ok(response) => response,
+                Err(error) => {
+                    let error = GeminiError::Http(error);
+                    crate::telemetry::telemetry_error!(
+                        error_kind = crate::telemetry::gemini_error_kind(&error),
+                        page_fetch_count,
+                        "list_models response parsing failed"
+                    );
+                    return Err(error);
+                }
+            };
 
             models.extend(response.models);
             next_page_token = response.next_page_token;
@@ -160,13 +195,22 @@ impl GeminiClient {
             }
         }
 
-        Ok(models
+        let models = models
             .into_iter()
             .map(|mut model| {
                 model.base_model_id = model.name.replace("models/", "");
                 model
             })
-            .collect())
+            .collect::<Vec<_>>();
+        let _ = page_fetch_count;
+
+        crate::telemetry::telemetry_info!(
+            page_fetch_count,
+            model_count = models.len(),
+            "list_models completed"
+        );
+
+        Ok(models)
     }
 
     pub async fn generate_content(
@@ -174,17 +218,60 @@ impl GeminiClient {
         model: &str,
         request: &GenerateContentRequest,
     ) -> Result<GenerateContentResponse, GeminiError> {
+        let _span = crate::telemetry::telemetry_span_guard!(
+            info,
+            "gemini_client_rs.generate_content",
+            model,
+            contents_count = request.contents.len(),
+            tools_count = request.tools.len(),
+            has_system_instruction = request.system_instruction.is_some(),
+            has_generation_config = request.generation_config.is_some()
+        );
+        crate::telemetry::telemetry_info!("generate_content started");
+
         let url = format!(
             "{}/models/{model}:generateContent?key={}",
             self.api_url, self.api_key
         );
 
-        let response = self.http_client.post(&url).json(request).send().await?;
+        let response = match self.http_client.post(&url).json(request).send().await {
+            Ok(response) => response,
+            Err(error) => {
+                let error = GeminiError::Http(error);
+                crate::telemetry::telemetry_error!(
+                    error_kind = crate::telemetry::gemini_error_kind(&error),
+                    "generate_content request failed"
+                );
+                return Err(error);
+            }
+        };
         if !response.status().is_success() {
-            return Err(GeminiError::from_response(response, None).await);
+            let error = GeminiError::from_response(response, None).await;
+            crate::telemetry::telemetry_error!(
+                error_kind = crate::telemetry::gemini_error_kind(&error),
+                "generate_content API failure"
+            );
+            return Err(error);
         }
 
-        Ok(response.json().await?)
+        let response: GenerateContentResponse = match response.json().await {
+            Ok(response) => response,
+            Err(error) => {
+                let error = GeminiError::Http(error);
+                crate::telemetry::telemetry_error!(
+                    error_kind = crate::telemetry::gemini_error_kind(&error),
+                    "generate_content response parsing failed"
+                );
+                return Err(error);
+            }
+        };
+
+        crate::telemetry::telemetry_info!(
+            candidate_count = response.candidates.len(),
+            "generate_content completed"
+        );
+
+        Ok(response)
     }
 
     /// Generates a streamed response from the model given an input
@@ -195,6 +282,11 @@ impl GeminiClient {
         request: &GenerateContentRequest,
     ) -> Result<impl Stream<Item = Result<types::GenerateContentResponse, GeminiError>>, GeminiError>
     {
+        let _model_name = model.to_string();
+        let _contents_count = request.contents.len();
+        let _tools_count = request.tools.len();
+        let _has_system_instruction = request.system_instruction.is_some();
+        let _has_generation_config = request.generation_config.is_some();
         let url = format!(
             "{}/models/{model}:streamGenerateContent?alt=sse&key={}",
             self.api_url, self.api_key
@@ -208,87 +300,143 @@ impl GeminiClient {
             .expect("can clone request builder");
 
         Ok(async_stream::stream! {
+            let _span = crate::telemetry::telemetry_span_guard!(
+                info,
+                "gemini_client_rs.stream_content",
+                model = _model_name.as_str(),
+                contents_count = _contents_count,
+                tools_count = _tools_count,
+                has_system_instruction = _has_system_instruction,
+                has_generation_config = _has_generation_config
+            );
+            crate::telemetry::telemetry_info!("stream_content started");
+            let mut message_count = 0usize;
+
             while let Some(event) = stream.next().await {
                 match event {
                     Ok(event) => match event {
-                        Event::Open => (),
-                        Event::Message(event) => yield
-                            serde_json::from_str::<types::GenerateContentResponse>(&event.data)
-                                .map_err(|error| GeminiError::Json {
-                                    data: event.data,
-                                    error,
-                                }),
+                        Event::Open => crate::telemetry::telemetry_debug!("stream_content opened"),
+                        Event::Message(event) => {
+                            message_count += 1;
+                            crate::telemetry::telemetry_debug!(
+                                message_count,
+                                "stream_content message received"
+                            );
+                            yield serde_json::from_str::<types::GenerateContentResponse>(&event.data)
+                                .map_err(|error| {
+                                    let error = GeminiError::Json {
+                                        data: event.data,
+                                        error,
+                                    };
+                                    crate::telemetry::telemetry_error!(
+                                        error_kind = crate::telemetry::gemini_error_kind(&error),
+                                        message_count,
+                                        "stream_content message parsing failed"
+                                    );
+                                    error
+                                })
+                        }
                     },
                     Err(e) => match e {
-                        reqwest_eventsource::Error::StreamEnded => stream.close(),
+                        reqwest_eventsource::Error::StreamEnded => {
+                            crate::telemetry::telemetry_info!(
+                                message_count,
+                                "stream_content ended"
+                            );
+                            stream.close()
+                        }
                         reqwest_eventsource::Error::InvalidContentType(content_type, response) => {
                             let header = content_type.to_str().unwrap_or_default();
-                            yield Err(GeminiError::from_response(
-                                    response,
-                                    Some(serde_json::json!({
-                                        "cause": "Invalid content type",
-                                        "header": header
-                                    }))).await)
+                            let error = GeminiError::from_response(
+                                response,
+                                Some(serde_json::json!({
+                                    "cause": "Invalid content type",
+                                    "header": header
+                                })),
+                            ).await;
+                            crate::telemetry::telemetry_error!(
+                                error_kind = crate::telemetry::gemini_error_kind(&error),
+                                message_count,
+                                "stream_content invalid content type"
+                            );
+                            yield Err(error)
                         }
                         reqwest_eventsource::Error::InvalidStatusCode(_, response) => {
-                            yield Err(GeminiError::from_response(
-                                    response,
-                                    Some(serde_json::json!({"cause": "Invalid status code"}))).await)
+                            let error = GeminiError::from_response(
+                                response,
+                                Some(serde_json::json!({"cause": "Invalid status code"})),
+                            ).await;
+                            crate::telemetry::telemetry_error!(
+                                error_kind = crate::telemetry::gemini_error_kind(&error),
+                                message_count,
+                                "stream_content invalid status code"
+                            );
+                            yield Err(error)
                         }
-                        _ => yield Err(e.into()),
+                        _ => {
+                            let error = GeminiError::EventSource(e);
+                            crate::telemetry::telemetry_error!(
+                                error_kind = crate::telemetry::gemini_error_kind(&error),
+                                message_count,
+                                "stream_content event source failure"
+                            );
+                            yield Err(error)
+                        }
                     }
                 }
             }
+
+            crate::telemetry::telemetry_info!(
+                message_count,
+                "stream_content completed"
+            );
+            let _ = message_count;
         })
     }
 
     pub async fn generate_content_with_function_calling(
         &self,
         model: &str,
-        mut request: GenerateContentRequest,
-        function_handlers: &HashMap<String, FunctionHandler>,
+        request: GenerateContentRequest,
+        function_handlers: &agentic::tool_runtime::ToolRegistry,
     ) -> Result<GenerateContentResponse, GeminiError> {
-        loop {
-            let response = self.generate_content(model, &request).await?;
-
-            let Some(candidate) = response.candidates.first() else {
-                return Ok(response);
-            };
-
-            let Some(part) = candidate.content.as_ref().and_then(|c| c.parts.first()) else {
-                return Ok(response);
-            };
-
-            if let ContentData::FunctionCall(function_call) = &part.data {
-                if let Some(content) = candidate.content.clone() {
-                    request.contents.push(content);
-                }
-
-                if let Some(handler) = function_handlers.get(&function_call.name) {
-                    let mut args = function_call.arguments.clone();
-                    match handler.execute(&mut args).await {
-                        Ok(result) => {
-                            request.contents.push(Content {
-                                parts: vec![ContentData::FunctionResponse(FunctionResponse {
-                                    id: function_call.id.clone(),
-                                    name: function_call.name.clone(),
-                                    response: FunctionResponsePayload { content: result },
-                                })
-                                .into()],
-                                role: None,
-                            });
-                        }
-                        Err(e) => return Err(GeminiError::FunctionExecution(e)),
-                    }
-                } else {
-                    return Err(GeminiError::FunctionExecution(format!(
-                        "Unknown function: {}",
-                        function_call.name
-                    )));
-                }
-            } else {
-                return Ok(response);
+        let _span = crate::telemetry::telemetry_span_guard!(
+            info,
+            "gemini_client_rs.generate_content_with_function_calling",
+            model,
+            contents_count = request.contents.len(),
+            tools_count = request.tools.len(),
+            function_handler_count = function_handlers.len()
+        );
+        crate::telemetry::telemetry_info!("generate_content_with_function_calling started");
+        let toolbox = agentic::tool_runtime::Toolbox::empty();
+        let tool_view = agentic::tool_runtime::ToolRegistryView::all(&toolbox, function_handlers);
+        let result = match agentic::tool_runtime::execute_tool_loop(
+            self,
+            model,
+            request,
+            Some(&tool_view),
+            &agentic::tool_runtime::ToolRuntimeConfig::default(),
+        )
+        .await
+        {
+            Ok(result) => result,
+            Err(error) => {
+                crate::telemetry::telemetry_error!(
+                    error_kind = crate::telemetry::gemini_error_kind(&error),
+                    function_handler_count = function_handlers.len(),
+                    "generate_content_with_function_calling failed"
+                );
+                return Err(error);
             }
-        }
+        };
+
+        crate::telemetry::telemetry_info!(
+            round_trips = result.trace.round_trips,
+            tool_call_count = result.trace.calls.len(),
+            "generate_content_with_function_calling completed"
+        );
+
+        Ok(result.response)
     }
 }
