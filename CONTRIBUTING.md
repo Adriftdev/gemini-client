@@ -1,8 +1,8 @@
 # Contributing to gemini-client-rs
 
-Thank you for your interest in contributing to `gemini-client-rs`. This project aims to provide a high-performance, idiomatic Rust client for the Google Gemini API, with a specialized `agentic` layer for deterministic multi-agent orchestration.
+Thank you for your interest in contributing to `gemini-client-rs`. This project provides a high-performance, idiomatic, and infrastructure-first Rust client for the Google Gemini API.
 
-As a systems-oriented project, we prioritize **reliability, determinism, and architectural clarity**.
+We focus on being a **precision thin layer**—prioritizing raw API fidelity, reliability, and architectural clarity.
 
 ---
 
@@ -28,21 +28,32 @@ As a systems-oriented project, we prioritize **reliability, determinism, and arc
    ```
 
 3. **Run Examples**:
-   Verify your setup by running a basic example:
+   Verify your setup by running the basic example:
    ```bash
    cargo run --example basic
    ```
 
 ---
 
+## 🏛️ Ecosystem Alignment
+
+This library is part of the `rain` ecosystem. To maintain consistency across clients (e.g., `ollama-client-rs`), we adhere to a shared set of interface patterns:
+
+1. **Builder Pattern**: Clients should always implement `new`, `with_client`, and `with_api_url`.
+2. **Pinned Streams**: All streaming methods must return `Pin<Box<dyn Stream>>` to simplify caller integration.
+3. **Standardized Telemetry**: Use the internal `telemetry_*!` macros. Never use raw `tracing` calls directly in the client logic.
+4. **Error Mapping**: Maintain a flat, descriptive `GeminiError` enum using `thiserror`.
+
+---
+
 ## 🛠️ Architectural Philosophy
 
-When contributing to the `agentic` module or core client, adhere to these principles:
+When contributing to the core client, adhere to these principles:
 
-1. **Occam's Razor**: Prefer the simplest implementation that satisfies the requirements. Avoid over-engineering orchestrators unless scale or resilience demands it.
-2. **Deterministic Orchestration**: Higher-level patterns (Supervisor, Worker, etc.) should have predictable state transitions. Avoid hidden side effects in agent loops.
-3. **Store and Forward (Persistence)**: For agentic workflows requiring long-running state, utilize local disk-backed buffers or persistent blackboards.
-4. **Transparent Proxy**: Ensure the low-level client remains a clean relay for the Gemini API, preserving byte-for-byte fidelity where possible.
+1. **Thin Layer Philosophy**: The client is a transport and mapping layer. Avoid adding complex state machines, orchestration logic, or "agentic" capabilities. These belong in higher-level crates (like `rain`).
+2. **Transparent Proxy**: Preserving byte-for-byte fidelity and API structure is a priority. Avoid abstractions that hide underlying API features.
+3. **Rust Type Safety**: Leverage Rust's type system to make API constraints (like `TaskType` or `FinishReason`) explicit and compile-time safe.
+4. **Zero-Overhead Abstractions**: Ensure the mapping from request structs to JSON is efficient and follows the public API documentation precisely.
 
 ---
 
@@ -50,8 +61,8 @@ When contributing to the `agentic` module or core client, adhere to these princi
 
 ### 1. Idiomatic Rust
 - Follow [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/).
-- Use `anyhow` for applications and examples.
-- Use `thiserror` for library-level error definitions in `src/`.
+- Use `thiserror` for all library-level error definitions.
+- Avoid `anyhow` in the core library; it is reserved for examples and tests.
 
 ### 2. Linting & Formatting
 We maintain strict quality gates. PRs will not be merged if they contain Clippy warnings.
@@ -60,10 +71,8 @@ cargo fmt --all
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
-### 3. Concurrency
-- Use `tokio` for async operations.
-- Prefer ownership and message passing over shared mutable state.
-- When shared state is necessary, use `Arc<RwLock<T>>` or `Arc<Mutex<T>>`.
+### 3. Telemetry
+Always use the standardized macros to ensure consistent mapping of error kinds and span data for cloud-native observability.
 
 ---
 
@@ -83,10 +92,9 @@ Every PR must be verified across multiple feature configurations:
    ```
 
 3. **Example Verification**:
-   If you modify the `agentic` module, you MUST verify the corresponding examples:
+   Ensure basic examples remain functional:
    ```bash
    cargo check --examples
-   cargo run --example supervisor_workflow
    ```
 
 ---
@@ -95,12 +103,12 @@ Every PR must be verified across multiple feature configurations:
 
 1. **Open an Issue**: Discuss major changes before implementation.
 2. **Fork and Branch**: Work on a feature branch (`feat/your-feature` or `fix/your-fix`).
-3. **Conventional Commits**: We recommend using conventional commit messages (e.g., `feat: add RAG caching`).
-4. **PR Review**: All PRs require at least one approval. Ensure all CI checks pass.
+3. **Conventional Commits**: We use conventional commit messages (e.g., `feat: add embedding support`).
+4. **PR Review**: All PRs require approval and passing CI checks.
 
 ---
 
 ## 🛡️ Security
 
 - **Never commit your `.env` file or API keys**.
-- If you find a security vulnerability, please report it via GitHub Issues (marking as private if possible) or contact the maintainers directly.
+- Report security vulnerabilities via GitHub Issues or contact the maintainers directly.

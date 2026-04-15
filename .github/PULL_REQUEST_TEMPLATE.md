@@ -14,9 +14,9 @@ Fixes # (issue)
 
 ## 🛡️ Architectural Alignment
 
-- [ ] Adheres to the **Simplest Solution First** principle?
-- [ ] Maintains **Deterministic Orchestration** in the `agentic` module?
-- [ ] Follows **Store and Forward** or **Transparent Proxy** patterns where applicable?
+- [ ] Adheres to the **Thin Layer Philosophy** (transport & mapping only)?
+- [ ] Follows **Transparent Proxy** and **Rust Type Safety** principles?
+- [ ] Uses standardized **Telemetry macros** for log consistency?
 
 ## 🧪 How Has This Been Tested?
 
@@ -24,7 +24,7 @@ Please describe the tests that you ran to verify your changes.
 
 - [ ] `cargo test`
 - [ ] `cargo test --features tracing`
-- [ ] Verified corresponding examples (e.g., `cargo run --example supervisor_workflow`)
+- [ ] Verified core examples (e.g., `cargo run --example basic`)
 
 ## ✅ Checklist
 

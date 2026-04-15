@@ -260,6 +260,57 @@ pub struct GenerateContentResponse {
     pub response_id: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct EmbedContentRequest {
+    pub model: String,
+    pub content: Content,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_type: Option<TaskType>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_dimensionality: Option<i32>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Default, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum TaskType {
+    #[default]
+    TaskTypeUnspecified,
+    RetrievalQuery,
+    RetrievalDocument,
+    SemanticSimilarity,
+    Classification,
+    Clustering,
+    QuestionAnswering,
+    FactVerification,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct EmbedContentResponse {
+    pub embedding: ContentEmbedding,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ContentEmbedding {
+    pub values: Vec<f32>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchEmbedContentsRequest {
+    pub requests: Vec<EmbedContentRequest>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchEmbedContentsResponse {
+    pub embeddings: Vec<ContentEmbedding>,
+}
+
 /// Specifies the reason why the prompt was blocked.
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]

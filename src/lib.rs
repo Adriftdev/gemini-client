@@ -1,36 +1,19 @@
+use std::pin::Pin;
 use futures_util::{Stream, StreamExt as _};
 use reqwest::Client;
 use reqwest_eventsource::{Event, RequestBuilderExt as _};
 use serde_json::Value;
-use types::{GenerateContentRequest, GenerateContentResponse};
-pub mod agentic;
+use types::{
+    BatchEmbedContentsRequest, BatchEmbedContentsResponse, EmbedContentRequest,
+    EmbedContentResponse, GenerateContentRequest, GenerateContentResponse,
+};
+
 mod telemetry;
 pub mod types;
 
-use anyhow::Result;
-use std::future::Future;
-use std::pin::Pin; // Using anyhow for cleaner error handling in examples
+pub type GeminiResponseStream =
+    Pin<Box<dyn Stream<Item = Result<GenerateContentResponse, GeminiError>> + Send>>;
 
-type SyncFunctionHandler = Box<dyn Fn(&mut Value) -> Result<Value, String> + Send + Sync>;
-type AsyncFunctionHandler = Box<
-    dyn Fn(&mut Value) -> Pin<Box<dyn Future<Output = Result<Value, String>> + Send>> + Send + Sync,
->;
-
-// The new enum to hold either a sync or async handler
-pub enum FunctionHandler {
-    Sync(SyncFunctionHandler),
-    Async(AsyncFunctionHandler),
-}
-
-impl FunctionHandler {
-    /// Executes the handler, automatically handling whether it's sync or async.
-    pub async fn execute(&self, params: &mut Value) -> Result<Value, String> {
-        match self {
-            FunctionHandler::Sync(handler) => handler(params),
-            FunctionHandler::Async(handler) => handler(params).await,
-        }
-    }
-}
 
 #[derive(Debug, thiserror::Error)]
 pub enum GeminiError {
@@ -46,10 +29,6 @@ pub enum GeminiError {
         #[source]
         error: serde_json::Error,
     },
-    #[error("Function execution error: {0}")]
-    FunctionExecution(String),
-    #[error("Tool loop exceeded the maximum number of round trips ({max_round_trips})")]
-    LoopLimitExceeded { max_round_trips: usize },
 }
 
 impl GeminiError {
@@ -280,8 +259,7 @@ impl GeminiClient {
         &self,
         model: &str,
         request: &GenerateContentRequest,
-    ) -> Result<impl Stream<Item = Result<types::GenerateContentResponse, GeminiError>>, GeminiError>
-    {
+    ) -> Result<GeminiResponseStream, GeminiError> {
         let _model_name = model.to_string();
         let _contents_count = request.contents.len();
         let _tools_count = request.tools.len();
@@ -299,7 +277,7 @@ impl GeminiClient {
             .eventsource()
             .expect("can clone request builder");
 
-        Ok(async_stream::stream! {
+        let stream = async_stream::stream! {
             let _span = crate::telemetry::telemetry_span_guard!(
                 info,
                 "gemini_client_rs.stream_content",
@@ -391,52 +369,121 @@ impl GeminiClient {
                 "stream_content completed"
             );
             let _ = message_count;
-        })
+        };
+
+        Ok(Box::pin(stream))
     }
 
-    pub async fn generate_content_with_function_calling(
+    /// Generates embeddings for the provided content.
+    pub async fn embed_content(
         &self,
-        model: &str,
-        request: GenerateContentRequest,
-        function_handlers: &agentic::tool_runtime::ToolRegistry,
-    ) -> Result<GenerateContentResponse, GeminiError> {
+        request: &EmbedContentRequest,
+    ) -> Result<EmbedContentResponse, GeminiError> {
         let _span = crate::telemetry::telemetry_span_guard!(
             info,
-            "gemini_client_rs.generate_content_with_function_calling",
-            model,
-            contents_count = request.contents.len(),
-            tools_count = request.tools.len(),
-            function_handler_count = function_handlers.len()
+            "gemini_client_rs.embed_content",
+            model = request.model.as_str(),
+            task_type = format!("{:?}", request.task_type.unwrap_or_default())
         );
-        crate::telemetry::telemetry_info!("generate_content_with_function_calling started");
-        let toolbox = agentic::tool_runtime::Toolbox::empty();
-        let tool_view = agentic::tool_runtime::ToolRegistryView::all(&toolbox, function_handlers);
-        let result = match agentic::tool_runtime::execute_tool_loop(
-            self,
-            model,
-            request,
-            Some(&tool_view),
-            &agentic::tool_runtime::ToolRuntimeConfig::default(),
-        )
-        .await
-        {
-            Ok(result) => result,
+        crate::telemetry::telemetry_info!("embed_content started");
+
+        let url = format!(
+            "{}/models/{}:embedContent?key={}",
+            self.api_url, request.model, self.api_key
+        );
+
+        let response = match self.http_client.post(&url).json(request).send().await {
+            Ok(response) => response,
             Err(error) => {
+                let error = GeminiError::Http(error);
                 crate::telemetry::telemetry_error!(
                     error_kind = crate::telemetry::gemini_error_kind(&error),
-                    function_handler_count = function_handlers.len(),
-                    "generate_content_with_function_calling failed"
+                    "embed_content request failed"
                 );
                 return Err(error);
             }
         };
 
-        crate::telemetry::telemetry_info!(
-            round_trips = result.trace.round_trips,
-            tool_call_count = result.trace.calls.len(),
-            "generate_content_with_function_calling completed"
+        if !response.status().is_success() {
+            let error = GeminiError::from_response(response, None).await;
+            crate::telemetry::telemetry_error!(
+                error_kind = crate::telemetry::gemini_error_kind(&error),
+                "embed_content API failure"
+            );
+            return Err(error);
+        }
+
+        let response: EmbedContentResponse = match response.json().await {
+            Ok(response) => response,
+            Err(error) => {
+                let error = GeminiError::Http(error);
+                crate::telemetry::telemetry_error!(
+                    error_kind = crate::telemetry::gemini_error_kind(&error),
+                    "embed_content response parsing failed"
+                );
+                return Err(error);
+            }
+        };
+
+        crate::telemetry::telemetry_info!("embed_content completed");
+
+        Ok(response)
+    }
+
+    /// Generates embeddings for a batch of content in a single request.
+    pub async fn batch_embed_contents(
+        &self,
+        model: &str,
+        request: &BatchEmbedContentsRequest,
+    ) -> Result<BatchEmbedContentsResponse, GeminiError> {
+        let _span = crate::telemetry::telemetry_span_guard!(
+            info,
+            "gemini_client_rs.batch_embed_contents",
+            model,
+            request_count = request.requests.len()
+        );
+        crate::telemetry::telemetry_info!("batch_embed_contents started");
+
+        let url = format!(
+            "{}/models/{}:batchEmbedContents?key={}",
+            self.api_url, model, self.api_key
         );
 
-        Ok(result.response)
+        let response = match self.http_client.post(&url).json(request).send().await {
+            Ok(response) => response,
+            Err(error) => {
+                let error = GeminiError::Http(error);
+                crate::telemetry::telemetry_error!(
+                    error_kind = crate::telemetry::gemini_error_kind(&error),
+                    "batch_embed_contents request failed"
+                );
+                return Err(error);
+            }
+        };
+
+        if !response.status().is_success() {
+            let error = GeminiError::from_response(response, None).await;
+            crate::telemetry::telemetry_error!(
+                error_kind = crate::telemetry::gemini_error_kind(&error),
+                "batch_embed_contents API failure"
+            );
+            return Err(error);
+        }
+
+        let response: BatchEmbedContentsResponse = match response.json().await {
+            Ok(response) => response,
+            Err(error) => {
+                let error = GeminiError::Http(error);
+                crate::telemetry::telemetry_error!(
+                    error_kind = crate::telemetry::gemini_error_kind(&error),
+                    "batch_embed_contents response parsing failed"
+                );
+                return Err(error);
+            }
+        };
+
+        crate::telemetry::telemetry_info!("batch_embed_contents completed");
+
+        Ok(response)
     }
 }
