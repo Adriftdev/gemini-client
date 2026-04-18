@@ -39,10 +39,12 @@ We focus on being a **precision thin layer**—prioritizing raw API fidelity, re
 
 This library is part of the `rain` ecosystem. To maintain consistency across clients (e.g., `ollama-client-rs`), we adhere to a shared set of interface patterns:
 
-1. **Builder Pattern**: Clients should always implement `new`, `with_client`, and `with_api_url`.
-2. **Pinned Streams**: All streaming methods must return `Pin<Box<dyn Stream>>` to simplify caller integration.
-3. **Standardized Telemetry**: Use the internal `telemetry_*!` macros. Never use raw `tracing` calls directly in the client logic.
-4. **Error Mapping**: Maintain a flat, descriptive `GeminiError` enum using `thiserror`.
+1. **Macro-First DX**: Prioritize declarative request building via procedural macros (`gemini_chat!`, `gemini_parts!`).
+2. **Standardized Schema Generation**: All structured outputs should use the `GeminiSchema` derive macro.
+3. **Builder Pattern**: Clients should always implement `new`, `with_client`, and `with_api_url`.
+4. **Pinned Streams**: All streaming methods must return `Pin<Box<dyn Stream>>` to simplify caller integration.
+5. **Standardized Telemetry**: Use the internal `telemetry_*!` macros.
+6. **Error Mapping**: Maintain a flat, descriptive `GeminiError` enum using `thiserror`.
 
 ---
 
@@ -50,10 +52,12 @@ This library is part of the `rain` ecosystem. To maintain consistency across cli
 
 When contributing to the core client, adhere to these principles:
 
-1. **Thin Layer Philosophy**: The client is a transport and mapping layer. Avoid adding complex state machines, orchestration logic, or "agentic" capabilities. These belong in higher-level crates (like `rain`).
-2. **Transparent Proxy**: Preserving byte-for-byte fidelity and API structure is a priority. Avoid abstractions that hide underlying API features.
-3. **Rust Type Safety**: Leverage Rust's type system to make API constraints (like `TaskType` or `FinishReason`) explicit and compile-time safe.
-4. **Zero-Overhead Abstractions**: Ensure the mapping from request structs to JSON is efficient and follows the public API documentation precisely.
+1. **Thin Layer Foundation**: The core client is a transport and mapping layer. Avoid adding complex state machines or orchestration logic.
+2. **Ergonomic Macro Overlay**: Provide a best-in-class developer experience via macros that simplify common tasks (e.g., chat construction, tool declaration).
+3. **Transparent Proxy**: Preserving byte-for-byte fidelity and API structure in the core types is a priority.
+4. **Rust Type Safety**: Leverage Rust's type system to make API constraints explicit and compile-time safe.
+5. **Zero-Overhead Abstractions**: Ensure the mapping from macros to request structs is efficient.
+
 
 ---
 

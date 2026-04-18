@@ -1,8 +1,8 @@
-use std::pin::Pin;
 use futures_util::{Stream, StreamExt as _};
 use reqwest::Client;
 use reqwest_eventsource::{Event, RequestBuilderExt as _};
 use serde_json::Value;
+use std::pin::Pin;
 use types::{
     BatchEmbedContentsRequest, BatchEmbedContentsResponse, EmbedContentRequest,
     EmbedContentResponse, GenerateContentRequest, GenerateContentResponse,
@@ -14,6 +14,7 @@ pub mod types;
 pub type GeminiResponseStream =
     Pin<Box<dyn Stream<Item = Result<GenerateContentResponse, GeminiError>> + Send>>;
 
+pub use gemini_client_macros::{gemini_tool, GeminiSchema};
 
 #[derive(Debug, thiserror::Error)]
 pub enum GeminiError {
@@ -255,7 +256,18 @@ impl GeminiClient {
 
     /// Generates a streamed response from the model given an input
     /// [`GenerateContentRequest`].
+    #[deprecated(since = "0.10.0", note = "Use stream_generate_content instead")]
     pub async fn stream_content(
+        &self,
+        model: &str,
+        request: &GenerateContentRequest,
+    ) -> Result<GeminiResponseStream, GeminiError> {
+        self.stream_generate_content(model, request).await
+    }
+
+    /// Generates a streamed response from the model given an input
+    /// [`GenerateContentRequest`].
+    pub async fn stream_generate_content(
         &self,
         model: &str,
         request: &GenerateContentRequest,
@@ -486,4 +498,282 @@ impl GeminiClient {
 
         Ok(response)
     }
+
+    /// Access the Files API client.
+    pub fn files(&self) -> FilesClient<'_> {
+        FilesClient { client: self }
+    }
+}
+
+pub struct FilesClient<'a> {
+    client: &'a GeminiClient,
+}
+
+impl<'a> FilesClient<'a> {
+    /// Uploads a file to the Gemini File API.
+    ///
+    /// Automatically detects MIME type and selects the appropriate upload protocol
+    /// (Multipart for small files, Resumable for large files).
+    pub async fn upload_file(
+        &self,
+        path: impl AsRef<std::path::Path>,
+    ) -> Result<types::File, GeminiError> {
+        let path = path.as_ref();
+        let mime_type = mime_guess::from_path(path)
+            .first_raw()
+            .unwrap_or("application/octet-stream");
+        let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("file");
+
+        let metadata = std::fs::metadata(path).map_err(|e| {
+            GeminiError::Api(serde_json::json!({
+                "status": 500,
+                "message": format!("Failed to read file metadata: {}", e),
+            }))
+        })?;
+        let size = metadata.len();
+
+        if size < 20 * 1024 * 1024 {
+            self.upload_multipart(path, mime_type, file_name).await
+        } else {
+            self.upload_resumable(path, mime_type, file_name, size)
+                .await
+        }
+    }
+
+    async fn upload_multipart(
+        &self,
+        path: &std::path::Path,
+        mime_type: &str,
+        file_name: &str,
+    ) -> Result<types::File, GeminiError> {
+        let url = "https://generativelanguage.googleapis.com/upload/v1beta/files";
+        let data = std::fs::read(path).map_err(|e| {
+            GeminiError::Api(serde_json::json!({
+                "status": 500,
+                "message": format!("Failed to read file: {}", e),
+            }))
+        })?;
+
+        let form = reqwest::multipart::Form::new()
+            .part(
+                "metadata",
+                reqwest::multipart::Part::text(
+                    serde_json::json!({
+                        "file": { "display_name": file_name }
+                    })
+                    .to_string(),
+                )
+                .mime_str("application/json")?,
+            )
+            .part(
+                "file",
+                reqwest::multipart::Part::bytes(data).mime_str(mime_type)?,
+            );
+
+        let response = self
+            .client
+            .http_client
+            .post(url)
+            .query(&[("key", &self.client.api_key)])
+            .multipart(form)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(GeminiError::from_response(response, None).await);
+        }
+
+        Ok(response.json().await?)
+    }
+
+    async fn upload_resumable(
+        &self,
+        path: &std::path::Path,
+        mime_type: &str,
+        file_name: &str,
+        size: u64,
+    ) -> Result<types::File, GeminiError> {
+        let url = "https://generativelanguage.googleapis.com/upload/v1beta/files";
+
+        // 1. Initial request to get upload URL
+        let response = self
+            .client
+            .http_client
+            .post(url)
+            .query(&[("key", &self.client.api_key)])
+            .header("X-Goog-Upload-Protocol", "resumable")
+            .header("X-Goog-Upload-Command", "start")
+            .header("X-Goog-Upload-Header-Content-Length", size)
+            .header("X-Goog-Upload-Header-Content-Type", mime_type)
+            .json(&serde_json::json!({
+                "file": { "display_name": file_name }
+            }))
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(GeminiError::from_response(response, None).await);
+        }
+
+        let upload_url = response
+            .headers()
+            .get("X-Goog-Upload-URL")
+            .and_then(|v| v.to_str().ok())
+            .ok_or_else(|| {
+                GeminiError::Api(serde_json::json!({"message": "Missing upload URL"}))
+            })?;
+
+        // 2. Upload the file content
+        let file = tokio::fs::File::open(path).await.map_err(|e| {
+            GeminiError::Api(serde_json::json!({
+                "status": 500,
+                "message": format!("Failed to open file for resumable upload: {}", e),
+            }))
+        })?;
+
+        let response = self
+            .client
+            .http_client
+            .post(upload_url)
+            .header("X-Goog-Upload-Command", "upload, finalize")
+            .header("X-Goog-Upload-Offset", 0)
+            .body(file)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(GeminiError::from_response(response, None).await);
+        }
+
+        Ok(response.json().await?)
+    }
+}
+
+/// Example:
+/// ```rust
+/// # use gemini_client_rs::gemini_role;
+/// let role = gemini_role!(user);
+/// ```
+
+#[macro_export]
+macro_rules! gemini_role {
+    (user) => {
+        $crate::types::Role::User
+    };
+    (model) => {
+        $crate::types::Role::Model
+    };
+    ($role:ident) => {
+        $crate::types::Role::$role
+    };
+}
+
+/// A declarative macro to build a [GenerateContentRequest] quickly.
+///
+/// Example:
+/// ```rust
+/// # use gemini_client_rs::gemini_chat;
+/// let req = gemini_chat!(
+///     system("You are a helpful assistant"),
+///     user("Hello!"),
+///     model("Hi there! How can I help?"),
+///     user("Tell me a joke.")
+/// );
+/// ```
+#[macro_export]
+macro_rules! gemini_chat {
+    (system($sys:expr) $(, $role:ident($text:expr))*) => {
+        $crate::types::GenerateContentRequest {
+            system_instruction: Some($crate::types::Content {
+                role: None,
+                parts: vec![$crate::types::Part::text($sys)],
+            }),
+            contents: vec![
+                $(
+                    $crate::types::Content {
+                        role: Some($crate::gemini_role!($role)),
+                        parts: vec![$crate::types::Part::text($text)],
+                    }
+                ),*
+            ],
+            ..Default::default()
+        }
+    };
+    ($($role:ident($text:expr)),*) => {
+        $crate::types::GenerateContentRequest {
+            contents: vec![
+                $(
+                    $crate::types::Content {
+                        role: Some($crate::gemini_role!($role)),
+                        parts: vec![$crate::types::Part::text($text)],
+                    }
+                ),*
+            ],
+            ..Default::default()
+        }
+    };
+}
+
+/// A declarative macro to build a list of [Part]s.
+///
+/// Example:
+/// ```rust,no_run
+/// # use gemini_client_rs::gemini_parts;
+/// let parts = gemini_parts![
+///     text("Analyze this image:"),
+///     image("path/to/image.png")
+/// ];
+/// ```
+
+#[macro_export]
+macro_rules! gemini_parts {
+    ($( $cmd:ident($arg:expr) ),* $(,)?) => {
+        vec![
+            $(
+                $crate::gemini_part_internal!($cmd($arg))
+            ),*
+        ]
+    };
+}
+
+
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! gemini_part_internal {
+    (text($t:expr)) => {
+        $crate::types::Part::text($t)
+    };
+
+    (image($p:expr)) => {{
+        let path = std::path::Path::new($p);
+        let data = std::fs::read(path).expect("Failed to read image file");
+        let mime_type = $crate::get_mime_type(path);
+        let base64_data = $crate::base64_encode(&data);
+        $crate::types::Part::inline_data(mime_type, base64_data)
+    }};
+
+    (file_uri($u:expr)) => {
+        $crate::types::Part::file_data("application/octet-stream", $u)
+    };
+    (thought($t:expr)) => {
+        $crate::types::Part::thought($t)
+    };
+    (thought_signature($s:expr)) => {
+        $crate::types::Part::ThoughtSignature { signature: $s.to_string() }
+    };
+}
+
+#[doc(hidden)]
+pub fn base64_encode(data: &[u8]) -> String {
+    use base64::{engine::general_purpose, Engine as _};
+    general_purpose::STANDARD.encode(data)
+}
+
+#[doc(hidden)]
+pub fn get_mime_type(path: &std::path::Path) -> String {
+    mime_guess::from_path(path)
+        .first_raw()
+        .unwrap_or("application/octet-stream")
+        .to_string()
 }

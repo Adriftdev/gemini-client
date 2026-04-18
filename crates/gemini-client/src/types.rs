@@ -1,18 +1,55 @@
 use std::collections::{BTreeSet, HashMap};
-
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Schema {
+    #[serde(rename = "type")]
+    pub schema_type: SchemaType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub format: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nullable: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "enum")]
+    pub enum_values: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub items: Option<Box<Schema>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub properties: Option<HashMap<String, Schema>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub required: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum SchemaType {
+    #[default]
+    TypeUnspecified,
+    String,
+    Number,
+    Integer,
+    Boolean,
+    Array,
+    Object,
+}
+
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Role {
+    #[default]
     User,
     Model,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct GenerateContentRequest {
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_instruction: Option<Content>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -25,9 +62,11 @@ pub struct GenerateContentRequest {
     pub generation_config: Option<GenerationConfig>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(untagged, rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum Tool {
+
+
     // will work for both v1 and v2 models
     #[serde(rename = "function_declaration")]
     FunctionDeclaration(ToolConfigFunctionDeclaration),
@@ -52,15 +91,17 @@ pub enum Tool {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolConfig {
+
     pub function_calling_config: FunctionCallingConfig,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct FunctionCallingConfig {
+
     pub mode: FunctionCallingMode,
     /// A set of function names that, when provided, limits the functions the
     /// model will call.
@@ -96,25 +137,93 @@ pub enum FunctionCallingMode {
     Validated,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Content {
+
+
     #[serde(default)]
-    pub parts: Vec<ContentPart>,
+    pub parts: Vec<Part>,
     // Optional. The producer of the content. Must be either 'user' or 'model'.
     // Useful to set for multi-turn conversations, otherwise can be left blank or unset.
     pub role: Option<Role>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+
+pub trait GeminiSchema {
+    fn schema() -> Schema;
+}
+
+pub trait GeminiTool {
+    fn declaration() -> FunctionDeclaration;
+}
+
+impl GeminiSchema for String {
+
+    fn schema() -> Schema {
+        Schema {
+            schema_type: SchemaType::String,
+            ..Default::default()
+        }
+    }
+}
+
+impl GeminiSchema for i32 {
+    fn schema() -> Schema {
+        Schema {
+            schema_type: SchemaType::Integer,
+            ..Default::default()
+        }
+    }
+}
+
+impl GeminiSchema for f64 {
+    fn schema() -> Schema {
+        Schema {
+            schema_type: SchemaType::Number,
+            ..Default::default()
+        }
+    }
+}
+
+impl GeminiSchema for bool {
+    fn schema() -> Schema {
+        Schema {
+            schema_type: SchemaType::Boolean,
+            ..Default::default()
+        }
+    }
+}
+
+impl<T: GeminiSchema> GeminiSchema for Vec<T> {
+    fn schema() -> Schema {
+        Schema {
+            schema_type: SchemaType::Array,
+            items: Some(Box::new(T::schema())),
+            ..Default::default()
+        }
+    }
+}
+
+impl<T: GeminiSchema> GeminiSchema for Option<T> {
+    fn schema() -> Schema {
+        let mut s = T::schema();
+        s.nullable = Some(true);
+        s
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GenerationConfig {
+
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stop_sequences: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response_mime_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub response_schema: Option<serde_json::Value>,
+    pub response_schema: Option<Schema>,
+
     #[serde(
         skip_serializing_if = "Option::is_none",
         rename = "_responseJsonSchema"
@@ -152,50 +261,61 @@ pub struct GenerationConfig {
     pub media_resolution: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolConfigFunctionDeclaration {
+
     pub function_declarations: Vec<FunctionDeclaration>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct DynamicRetrieval {
     pub dynamic_retrieval_config: DynamicRetrievalConfig,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct DynamicRetrievalConfig {
     pub mode: String,
     pub dynamic_threshold: f64,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct FunctionDeclaration {
+
     pub name: String,
     pub description: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub parameters: Option<FunctionParameters>,
+    pub parameters: Option<Schema>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub parameters_json_schema: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub response: Option<FunctionParameters>,
+    pub response: Option<Schema>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+
+/// [DEPRECATED] Use [Schema] instead.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[allow(deprecated)]
+#[deprecated(since = "0.10.0", note = "Use Schema instead")]
 pub struct FunctionParameters {
     #[serde(rename = "type")]
     pub parameter_type: String,
+    #[allow(deprecated)]
     pub properties: HashMap<String, ParameterProperty>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub required: Option<Vec<String>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+/// [DEPRECATED] Use [Schema] instead.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(tag = "type", rename_all = "lowercase")]
+#[allow(deprecated)]
+#[deprecated(since = "0.10.0", note = "Use Schema instead")]
 pub enum ParameterProperty {
+
+
     String(ParameterPropertyString),
     Integer(ParameterPropertyInteger),
     Number(ParameterPropertyNumber),
@@ -203,35 +323,42 @@ pub enum ParameterProperty {
     Array(ParameterPropertyArray),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ParameterPropertyArray {
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    #[allow(deprecated)]
     pub items: Box<ParameterProperty>,
+
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ParameterPropertyString {
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "enum")]
     pub enum_values: Option<Vec<String>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ParameterPropertyInteger {
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ParameterPropertyNumber {
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ParameterPropertyBoolean {
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
@@ -247,9 +374,10 @@ pub struct ParameterPropertyBoolean {
 /// - Returns no candidates at all only if there was something wrong with the
 ///   prompt (check promptFeedback)
 /// - Reports feedback on each candidate in finishReason and safetyRatings.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct GenerateContentResponse {
+
     #[serde(default)]
     pub candidates: Vec<Candidate>,
     pub prompt_feedback: Option<PromptFeedback>,
@@ -260,9 +388,10 @@ pub struct GenerateContentResponse {
     pub response_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct EmbedContentRequest {
+
     pub model: String,
     pub content: Content,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -285,29 +414,36 @@ pub enum TaskType {
     Clustering,
     QuestionAnswering,
     FactVerification,
+    #[serde(other)]
+    Other,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct EmbedContentResponse {
+
     pub embedding: ContentEmbedding,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentEmbedding {
+
     pub values: Vec<f32>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct BatchEmbedContentsRequest {
+
     pub requests: Vec<EmbedContentRequest>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct BatchEmbedContentsResponse {
+
     pub embeddings: Vec<ContentEmbedding>,
 }
 
@@ -332,39 +468,40 @@ pub enum PromptFeedback {
     ImageSafety,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
-    prompt_token_count: Option<u32>,
+    pub prompt_token_count: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    total_token_count: Option<u32>,
+    pub total_token_count: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    candidates_token_count: Option<u32>,
+    pub candidates_token_count: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    cached_content_token_count: Option<u32>,
+    pub cached_content_token_count: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    tool_use_prompt_token_count: Option<u32>,
+    pub tool_use_prompt_token_count: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    thoughts_token_count: Option<u32>,
+    pub thoughts_token_count: Option<u32>,
     #[serde(default)]
-    prompt_tokens_details: Vec<ModalityTokenCount>,
+    pub prompt_tokens_details: Vec<ModalityTokenCount>,
     #[serde(default)]
-    cache_tokens_details: Vec<ModalityTokenCount>,
+    pub cache_tokens_details: Vec<ModalityTokenCount>,
     #[serde(default)]
-    candidates_tokens_details: Vec<ModalityTokenCount>,
+    pub candidates_tokens_details: Vec<ModalityTokenCount>,
     #[serde(default)]
-    tool_use_prompt_tokens_details: Vec<ModalityTokenCount>,
+    pub tool_use_prompt_tokens_details: Vec<ModalityTokenCount>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub traffic_type: Option<TrafficType>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ModalityTokenCount {
-    modality: Modality,
-    token_count: u32,
+    pub modality: Modality,
+    pub token_count: u32,
 }
+
 
 /// Request traffic type. Indicates whether the request consumes Pay-As-You-Go or
 /// Provisioned Throughput quota.
@@ -378,7 +515,10 @@ pub enum TrafficType {
     OnDemand,
     /// Type for Provisioned Throughput traffic.
     ProvisionedThroughput,
+    #[serde(other)]
+    Other,
 }
+
 
 /// Content Part modality
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, Default, PartialEq)]
@@ -397,12 +537,18 @@ pub enum Modality {
     Audio,
     /// Document, e.g. PDF.
     Document,
+    /// Thinking / Reasoning.
+    Thoughts,
+    #[serde(other)]
+    Other,
 }
 
+
 /// Config for thinking features.
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ThinkingConfig {
+
     /// Indicates whether to include thoughts in the response. If true, thoughts
     /// are returned only when available.
     pub include_thoughts: bool,
@@ -431,12 +577,15 @@ pub enum ThinkingLevel {
     Medium,
     /// High thinking level.
     High,
+    #[serde(other)]
+    Other,
 }
 
 /// A response candidate generated from the model.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Candidate {
+
     /// Generated content returned from the model.
     ///
     /// This field is not always populated, e.g.:
@@ -451,7 +600,9 @@ pub struct Candidate {
     pub finish_reason: Option<FinishReason>,
     /// List of ratings for the safety of a response candidate. There is at most
     /// one rating per category.
-    pub satefy_ratings: Option<Vec<SatisfyRating>>,
+    pub safety_ratings: Option<Vec<SafetyRating>>,
+
+
     /// Citation information for model-generated candidate.
     ///
     /// This field may be populated with recitation information for any text
@@ -461,10 +612,9 @@ pub struct Candidate {
     pub citation_metadata: Option<CitationMetadata>,
     /// Token count for this candidate.
     pub token_count: Option<u32>,
-    /// Attribution information for sources that contributed to a grounded
-    /// answer. This field is populated for `GenerateAnswer` calls.
     #[serde(default)]
     pub grounding_attributions: Vec<GroundingAttribution>,
+
     /// Grounding metadata for the candidate. This field is populated for
     /// `GenerateContent` calls.
     pub grounding_metadata: Option<GroundingMetadata>,
@@ -483,7 +633,7 @@ pub struct Candidate {
 }
 
 /// Attribution for a source that contributed to an answer.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct GroundingAttribution {
     /// Identifier for the source contributing to this attribution.
@@ -493,15 +643,18 @@ pub struct GroundingAttribution {
     pub content: Content,
 }
 
+
 /// Identifier for the source contributing to this attribution.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(untagged, rename_all = "camelCase")]
 pub enum AttributionSourceId {
+
     /// Identifier for an inline passage.
     GroundingPassage(GroundingPassageId),
     /// Identifier for a Chunk fetched via Semantic Retriever.
     SemanticRetrieverChunk(SemanticRetrieverChunk),
 }
+
 
 /// Identifier for a part within a `GroundingPassage`.
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
@@ -517,7 +670,7 @@ pub struct GroundingPassageId {
 
 /// Identifier for a Chunk fetched via Semantic Retriever specified in the
 /// `GenerateAnswerRequest` using `SemanticRetrieverConfig`.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SemanticRetrieverChunk {
     /// Name of the source matching the request's
@@ -530,6 +683,7 @@ pub struct SemanticRetrieverChunk {
     /// Example: `corpora/123/documents/abc/chunks/xyz`
     pub chunk: String,
 }
+
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -564,7 +718,8 @@ pub struct CitationSource {
 /// classification is included here.
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct SatisfyRating {
+pub struct SafetyRating {
+
     /// The category for this rating.
     pub category: HarmCategory,
     /// The probability of harm for this content.
@@ -587,7 +742,10 @@ pub enum HarmProbability {
     Medium,
     /// Content has a high chance of being unsafe.
     High,
+    #[serde(other)]
+    Other,
 }
+
 
 // HarmCategory
 //
@@ -601,32 +759,21 @@ pub enum HarmCategory {
     /// Default value. This value is unused.
     #[default]
     HarmCategoryUnspecified,
-    /// PaLM - Negative or harmful comments targeting identity and/or protected
-    /// attribute.
     Derogatory,
-    /// PaLM - Content that is rude, disrespectful, or profane.
     Toxicity,
-    /// PaLM - Describes scenarios depicting violence against an individual or
-    /// group, or general descriptions of gore.
     Violence,
-    /// PaLM - Contains references to sexual acts or other lewd content.
     Sexual,
-    /// PaLM - Promotes unchecked medical advice.
     Medical,
-    /// PaLM - Dangerous content that promotes, facilitates, or encourages
-    /// harmful acts.
     Dangerous,
-    /// Gemini - Harassment content.
     Harassment,
-    /// Gemini - Hate speech and content.
     HateSpeech,
-    /// Gemini - Sexually explicit content.
     SexuallyExplicit,
-    /// Gemini - Dangerous content.
     DangerousContent,
-    /// Gemini - Content that may be used to harm civic integrity.
     CivicIntegrity,
+    #[serde(other)]
+    Other,
 }
+
 
 /// Metadata returned to client when grounding is enabled.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -794,19 +941,157 @@ pub enum FinishReason {
     UnexpectedToolCall,
 }
 
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(untagged, rename_all = "camelCase")]
+pub enum Part {
+    /// Standard text part.
+    Text { 
+        text: String 
+    },
+    /// Thought / Reasoning part (Gemini 3).
+    Thought {
+        text: String,
+        #[serde(default)]
+        thought: bool,
+    },
+    /// Inline binary data.
+    InlineData {
+        #[serde(rename = "inlineData")]
+        data: InlineData
+    },
+    /// Data stored in a file (e.g. via File API).
+    FileData {
+        #[serde(rename = "fileData")]
+        data: FileData
+    },
+    /// A call to a tool/function.
+    FunctionCall {
+        #[serde(rename = "functionCall")]
+        call: FunctionCall
+    },
+    /// A response from a tool/function.
+    FunctionResponse {
+        #[serde(rename = "functionResponse")]
+        response: FunctionResponse
+    },
+    /// Executable code (e.g. Python for code execution).
+    ExecutableCode {
+        #[serde(rename = "executableCode")]
+        code: ExecutableCode
+    },
+    /// Result of code execution.
+    CodeExecutionResult {
+        #[serde(rename = "codeExecutionResult")]
+        result: Value
+    },
+    /// Opaque thought signature for stateful reasoning (Gemini 3).
+    ThoughtSignature {
+        #[serde(rename = "thoughtSignature")]
+        signature: String
+    },
+}
+
+impl Part {
+    pub fn text(t: impl Into<String>) -> Self {
+        Self::Text { text: t.into() }
+    }
+
+    pub fn thought(t: impl Into<String>) -> Self {
+        Self::Thought {
+            text: t.into(),
+            thought: true,
+        }
+    }
+    
+    pub fn inline_data(mime_type: impl Into<String>, data: impl Into<String>) -> Self {
+        Self::InlineData {
+            data: InlineData {
+                mime_type: mime_type.into(),
+                data: data.into(),
+            }
+        }
+    }
+
+    pub fn file_data(mime_type: impl Into<String>, file_uri: impl Into<String>) -> Self {
+        Self::FileData {
+            data: FileData {
+                mime_type: mime_type.into(),
+                file_uri: file_uri.into(),
+            }
+        }
+    }
+}
+
+
+/// [DEPRECATED] Use [Part] instead.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[allow(deprecated)]
+#[deprecated(since = "0.10.0", note = "Use Part instead")]
 pub struct ContentPart {
+
+
     #[serde(default, skip_serializing_if = "is_false")]
     pub thought: bool,
+    #[allow(deprecated)]
     #[serde(flatten)]
     pub data: ContentData,
+
     #[serde(skip_serializing)]
     pub metadata: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thought_signature: Option<String>,
 }
 
+#[allow(deprecated)]
+impl From<Part> for ContentPart {
+    fn from(part: Part) -> Self {
+        match part {
+            Part::Text { text } => ContentPart::new_text(&text, false),
+            Part::InlineData { data } => ContentPart::new_inline_data(&data.mime_type, &data.data, false),
+            Part::FileData { data } => ContentPart::new_file_data(&data.mime_type, &data.file_uri),
+            Part::FunctionCall { call } => ContentPart::new_function_call(call.id.as_deref(), &call.name, call.arguments, false),
+            Part::FunctionResponse { response } => ContentPart::new_function_response(response.id.as_deref(), &response.name, response.response.content),
+            Part::ExecutableCode { code } => ContentPart::new_executable_code(&code.code),
+            Part::CodeExecutionResult { result } => ContentPart::new_code_execution_result(result),
+            Part::Thought { text, .. } => ContentPart::new_text(&text, true),
+            Part::ThoughtSignature { signature } => {
+                let mut cp = ContentPart::new_text("", false);
+                cp.thought_signature = Some(signature);
+                cp
+            }
+        }
+    }
+}
+
+#[allow(deprecated)]
+impl From<ContentPart> for Part {
+
+
+    fn from(cp: ContentPart) -> Self {
+        if cp.thought {
+            if let ContentData::Text(t) = cp.data {
+                return Part::Thought { text: t, thought: true };
+            }
+        }
+        if let Some(sig) = cp.thought_signature {
+            return Part::ThoughtSignature { signature: sig };
+        }
+        match cp.data {
+            ContentData::Text(t) => Part::Text { text: t },
+            ContentData::InlineData(d) => Part::InlineData { data: d },
+            ContentData::FileData(d) => Part::FileData { data: d },
+            ContentData::FunctionCall(c) => Part::FunctionCall { call: c },
+            ContentData::FunctionResponse(r) => Part::FunctionResponse { response: r },
+            ContentData::ExecutableCode(c) => Part::ExecutableCode { code: c },
+            ContentData::CodeExecutionResult(v) => Part::CodeExecutionResult { result: v },
+        }
+    }
+}
+
+
+#[allow(deprecated)]
 impl ContentPart {
     pub fn new_text(text: &str, thought: bool) -> Self {
         Self {
@@ -897,20 +1182,14 @@ fn is_false(value: &bool) -> bool {
     !*value
 }
 
-impl From<ContentData> for ContentPart {
-    fn from(data: ContentData) -> Self {
-        Self {
-            data,
-            thought: false,
-            metadata: None,
-            thought_signature: None,
-        }
-    }
-}
-
+/// [DEPRECATED] Use [Part] instead.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[allow(deprecated)]
+#[deprecated(since = "0.10.0", note = "Use Part instead")]
 pub enum ContentData {
+
+
     Text(String),
     InlineData(InlineData),
     FileData(FileData),
@@ -919,6 +1198,7 @@ pub enum ContentData {
     ExecutableCode(ExecutableCode),
     CodeExecutionResult(Value),
 }
+
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -987,6 +1267,32 @@ pub struct Model {
     pub top_k: Option<f32>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct File {
+    pub name: String,
+    pub display_name: Option<String>,
+    pub mime_type: String,
+    pub size_bytes: String,
+    pub create_time: String,
+    pub update_time: String,
+    pub expiration_time: String,
+    pub sha256_hash: String,
+    pub uri: String,
+    pub state: FileState,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Default, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum FileState {
+    #[default]
+    StateUnspecified,
+    Processing,
+    Active,
+    Failed,
+}
+
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -994,28 +1300,35 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        FunctionDeclaration, FunctionParameters, ParameterProperty, ParameterPropertyString,
+        FunctionDeclaration, SchemaType,
     };
 
+
+
     #[test]
-    fn function_declaration_omits_null_schema_when_parameters_are_present() {
+    fn function_declaration_serialization() {
+        use super::Schema;
         let declaration = FunctionDeclaration {
             name: "lookup_status".to_string(),
             description: "Looks up service status".to_string(),
-            parameters: Some(FunctionParameters {
-                parameter_type: "object".to_string(),
-                properties: HashMap::from([(
+            parameters: Some(Schema {
+                schema_type: SchemaType::Object,
+                properties: Some(HashMap::from([(
                     "service".to_string(),
-                    ParameterProperty::String(ParameterPropertyString {
+                    Schema {
+                        schema_type: SchemaType::String,
                         description: Some("Service name".to_string()),
-                        enum_values: None,
-                    }),
-                )]),
+                        ..Default::default()
+                    },
+                )])),
                 required: Some(vec!["service".to_string()]),
+                ..Default::default()
             }),
-            parameters_json_schema: None,
+
+
             response: None,
         };
+
 
         let serialized = serde_json::to_value(&declaration).expect("declaration should serialize");
         let object = serialized

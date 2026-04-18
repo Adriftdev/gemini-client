@@ -15,31 +15,26 @@ This crate does not own orchestration, planning, retrieval, or tool-loop executi
 ## Basic usage
 
 ```rust
-use gemini_client_rs::{
-    types::{Content, ContentPart, GenerateContentRequest},
-    GeminiClient,
-};
+use gemini_client_rs::{gemini_chat, GeminiClient};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = GeminiClient::default();
+    
+    // Use the declarative gemini_chat! macro for elegant request building
+    let req = gemini_chat!(
+        user("Summarize this project in two sentences.")
+    );
+
     let response = client
-        .generate_content(
-            "gemini-2.5-flash",
-            &GenerateContentRequest {
-                contents: vec![Content {
-                    role: None,
-                    parts: vec![ContentPart::new_text("Summarize this project in two sentences.", false)],
-                }],
-                ..Default::default()
-            },
-        )
+        .generate_content("gemini-2.0-flash", &req)
         .await?;
 
     println!("{response:#?}");
     Ok(())
 }
 ```
+
 
 ## Position in the stack
 
